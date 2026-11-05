@@ -4,6 +4,18 @@ The version number is `__version__` in `gpu_monitor.py` (also shown by `--versio
 
 バージョン番号は `gpu_monitor.py` の `__version__`（`--version` とメニューの最下段にも表示）。このファイルと揃えること（テストで確認している）。
 
+## [1.1.0] - Unreleased
+
+### Added / 追加
+- Text size (Small / Medium / Large) in the menu; fonts, bars and graphs scale together. / メニューで文字サイズ（小・中・大）。文字・バー・グラフが一緒に変わる
+- Update interval (0.5 / 1 / 2 / 5 s) in the menu; the graph keeps showing the last 60 s. / メニューで更新間隔（0.5 / 1 / 2 / 5 秒）。グラフは常に直近 60 秒
+- Install with pipx: `pipx install git+https://github.com/Nihonyamori/gpu-monitor` (`gpu-monitor` command). / pipx でインストール可能（`gpu-monitor` コマンド）
+- Pushing a `v*` tag runs the tests and creates the GitHub release from this file. / `v*` タグの push でテスト後に、このファイルから GitHub のリリースを自動作成
+- README images of the compact view and the process list. / README にコンパクト表示とプロセス一覧の画像
+
+### Changed / 変更
+- The graph history is kept per GPU, so it survives switching the compact view or text size. / グラフの履歴を GPU ごとに保持し、コンパクト表示や文字サイズを切り替えても消えない
+
 ## [1.0.0] - 2026-11-05
 
 ### Added / 追加

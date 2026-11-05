@@ -1,0 +1,29 @@
+name: release
+
+# Push a tag like v1.1.0 -> run the tests -> create the GitHub release
+# with the matching CHANGELOG.md section (see DEVELOPER.md).
+# v1.1.0 のようなタグを push → テスト → CHANGELOG.md の該当部分で
+# GitHub のリリースを作る（DEVELOPER.md 参照）。
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release notes from CHANGELOG.md (also checks __version__)
+        run: python3 scripts/release_notes.py "$GITHUB_REF_NAME" > notes.md
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "GPU Monitor ${GITHUB_REF_NAME#v}" --notes-file notes.md

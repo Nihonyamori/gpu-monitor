@@ -57,14 +57,18 @@ GPU のカードにマウスを乗せると、その GPU を使っているプ�
 | Always on top | 「Always on top」ボタンと同じ |
 | Compact view | 1 GPU を 1 行で表示：`GPU 0  G 17%  M 9%  P 8%  48°C`（G = GPU、M = メモリ、P = 電力）。グラフとメモリ合計の行は隠れる。マウスを乗せるとプロセス一覧は出る |
 | Show history graph (60 s) | グラフの表示・非表示（コンパクト表示中は選べない） |
+| Text size | 文字サイズ：Small / Medium / Large（文字・バー・グラフが一緒に変わる） |
+| Update interval | 更新間隔：0.5 / 1 / 2 / 5 秒。グラフは常に直近 60 秒 |
 | Opacity | ウィンドウを半透明にする：100% / 90% / 80% / 70% / 60% |
 | Move to top-right | ウィンドウを右上に戻す |
 | Quit | 終了（ウィンドウ位置は保存される） |
-| GPU Monitor 1.0.0 | バージョン（押せない） |
+| GPU Monitor 1.1.0 | バージョン（押せない） |
 
 ---
 
 ## 起動方法
+
+> pipx でインストールした場合（README 参照）は `gpu-monitor` で起動します。オプションは `./gpu_monitor.py` と同じです。
 
 1. ターミナルを開く
 2. 以下を実行
@@ -75,7 +79,7 @@ cd ~/programs/gpu_monitor
 ```
 
 - 初回はウィンドウが**画面右上**に出てきます。2 回目からは**前回閉じた位置**に開きます（好きな場所へドラッグしてください）。
-- 約 **0.5秒**ごとに表示が自動更新されます。
+- 約 **0.5秒**ごとに表示が自動更新されます（メニューで変更可）。
 - 閉じる時はウィンドウの ✕ を押します（ターミナルで Ctrl+C でも可）。どちらでも位置は保存されます。
 
 ### アプリメニューから起動する
@@ -173,13 +177,16 @@ A. 通常は NVIDIA ドライバのライブラリ（NVML）から直接 GPU 情
 `~/.config/gpu_monitor.json` に保存します。
 
 ```json
-{ "always_on_top": true, "show_graph": true, "compact": false, "opacity": 100, "x": 2932, "y": 20 }
+{ "always_on_top": true, "show_graph": true, "compact": false, "opacity": 100,
+  "text_size": "medium", "interval_ms": 500, "x": 2932, "y": 20 }
 ```
 
 - `always_on_top`: `true` = 常時手前 ON（画面の一番手前に表示）、`false` = OFF（普通のウィンドウ）
 - `show_graph`: `true` = 履歴グラフを表示（既定）、`false` = 非表示
 - `compact`: `true` = コンパクト表示、`false` = カード表示（既定）
 - `opacity`: `100`・`90`・`80`・`70`・`60`（%）。それ以外の値は 100 として扱う
+- `text_size`: `small`・`medium`（既定）・`large`
+- `interval_ms`: 更新間隔 (ms)。`500`（既定）・`1000`・`2000`・`5000`
 - `x`, `y`: ウィンドウの位置（画面左上からのピクセル数）。終了時に保存
 
 手動で変更したい場合は、プログラムを閉じた状態でこのファイルを編集し、

@@ -8,7 +8,7 @@ Created   : 2026-11-04
 Japanese (概要):
   NVIDIA GPU のリアルタイム使用状況を小さなウィンドウに常時表示する
   tkinter GUI。GPU 使用率・メモリ使用率・消費電力率・温度・メモリ絶対値を
-  0.5秒間隔で NVML（使えなければ nvidia-smi）から取得し、カード形式で
+  0.5秒間隔（変更可）で NVML（使えなければ nvidia-smi）から取得し、カード形式で
   表示する。
 
 English (Summary):
@@ -34,14 +34,17 @@ Features (主な機能):
   - カードにマウスを乗せると、その GPU を使っているプロセスを表示
     / Hovering over a card lists the processes using that GPU.
   - メニュー（「⋮」ボタンか右クリック）: 常に手前・コンパクト表示
-    （1 GPU 1 行）・グラフ・不透明度・右上へ移動・終了・バージョン
+    （1 GPU 1 行）・グラフ・文字サイズ・更新間隔・不透明度・右上へ移動・
+    終了・バージョン
     / Menu ("⋮" button or right-click): always on top, compact view
-    (one line per GPU), graph, opacity, move to top-right, quit, version
-  - 設定（常に手前・グラフ・コンパクト表示・不透明度・ウィンドウ位置）を
+    (one line per GPU), graph, text size, update interval, opacity,
+    move to top-right, quit, version
+  - 設定（常に手前・グラフ・コンパクト表示・文字サイズ・更新間隔・
+    不透明度・ウィンドウ位置）を
     ~/.config/gpu_monitor.json に保存し、次回起動時に復元する。
     初回は画面右上に配置。
-    / Settings (always on top, graph, compact view, opacity, window
-    position) are persisted to ~/.config/gpu_monitor.json and restored
+    / Settings (always on top, graph, compact view, text size, update
+    interval, opacity, window position) are persisted to ~/.config/gpu_monitor.json and restored
     on the next launch. The first launch places the window at the
     top-right.
   - 二重起動しない（2 つ目は既存のウィンドウを手前に出して終了）
@@ -64,6 +67,8 @@ Dependencies (依存関係):
     / NVIDIA ドライバ（libnvidia-ml.so.1 か `nvidia-smi` コマンド）
 
 Usage (使い方):
+  (installed with pipx: `gpu-monitor` takes the same options
+   / pipx で入れた場合は `gpu-monitor` で同じオプション)
   ./gpu_monitor.py                Normal start (restores last settings)
                                   / 通常起動（前回の設定と位置を引き継ぐ）
   ./gpu_monitor.py -A             Start with always-on-top / 常時手前で起動
@@ -116,8 +121,9 @@ from collections import deque
 from pathlib import Path
 
 import tkinter as tk
+import tkinter.font as tkfont
 
-__version__ = "1.0.0"   # Keep in sync with CHANGELOG.md / CHANGELOG.md と揃える
+__version__ = "1.1.0"   # Keep in sync with CHANGELOG.md / CHANGELOG.md と揃える
 
 REFRESH_MS = 500   # Refresh interval in milliseconds / 更新間隔 (ms)
 QUERY_TIMEOUT_S = 2  # nvidia-smi timeout in seconds / nvidia-smi のタイムアウト (s)
@@ -131,13 +137,15 @@ ICON_FILE = Path(__file__).resolve().parent / "icon.png"  # Window icon / ウィ
 WM_CLASS = "gpu-monitor"
 BAR_W = 160        # Bar width in pixels / バー幅 (px)
 BAR_H = 12         # Bar height in pixels / バー高さ (px)
-PCT_W = 34         # Width of the "100%" text area right of the bar (px)
-                   # / バー右側の % 表示領域の幅 (px)
 TEMP_WARN = 80     # Temperature shown yellow from here (°C) / 黄色になる温度
 TEMP_BAD = 90      # Temperature shown red from here (°C) / 赤になる温度
 GRAPH_H = 44       # History graph height (px) / 履歴グラフの高さ (px)
 LEGEND_H = 12      # Legend strip at the top of the graph (px) / 凡例の帯
-GRAPH_POINTS = 120   # Samples in the graph (120 x 0.5 s = 60 s) / グラフの点数
+GRAPH_SECONDS = 60   # Time span of the graph (s) / グラフの期間 (秒)
+# Text size choices: name -> scale of fonts and pixel sizes
+# 文字サイズの選択肢: 名前 -> フォントとピクセル寸法の倍率
+TEXT_SIZES = {"small": 0.85, "medium": 1.0, "large": 1.3}
+UPDATE_INTERVALS_MS = (500, 1000, 2000, 5000)   # Update interval choices / 更新間隔の選択肢
 PROC_LIMIT = 15    # Max processes listed in the tooltip / ツールチップの最大行数
 GRAPH_MENU_LABEL = "Show history graph (60 s)"
 OPACITY_LEVELS = (100, 90, 80, 70, 60)   # Window opacity choices (%) / 不透明度の選択肢
@@ -707,71 +715,141 @@ class SingleInstance:
             self._lock = None
 
 
+class Style:
+    """Fonts and pixel sizes for the current text size.
+    / 現在の文字サイズのフォントとピクセル寸法。
+
+    The fonts are Tk named fonts, so set_size() updates every widget
+    that uses them at once. Pixel sizes (bars, graph) are read when a
+    widget is built, so the cards are rebuilt after a size change.
+    / フォントは Tk の名前付きフォントなので、set_size() で使っている
+      ウィジェットがすべて一度に変わる。バーやグラフのピクセル寸法は
+      作成時に読むので、サイズ変更後はカードを作り直す。
+    """
+
+    def __init__(self, root, text_size="medium"):
+        self.normal = tkfont.Font(root, family="Helvetica", size=10)
+        self.bold = tkfont.Font(root, family="Helvetica", size=10,
+                                weight="bold")
+        self.title = tkfont.Font(root, family="Helvetica", size=12,
+                                 weight="bold")
+        self.small = tkfont.Font(root, family="Helvetica", size=8)
+        self.mono = tkfont.nametofont("TkFixedFont").copy()
+        self._mono_size = self.mono.cget("size")
+        self.set_size(text_size)
+
+    def set_size(self, text_size):
+        """Apply one of TEXT_SIZES (unknown names mean "medium").
+        / TEXT_SIZES のどれかを適用する（不明なら "medium"）。"""
+        self.text_size = text_size if text_size in TEXT_SIZES else "medium"
+        self.scale = TEXT_SIZES[self.text_size]
+        for font, base in ((self.normal, 10), (self.bold, 10),
+                           (self.title, 12), (self.small, 8),
+                           (self.mono, self._mono_size)):
+            # Negative sizes are pixels in Tk; keep the sign
+            # Tk では負のサイズはピクセル指定なので符号を保つ
+            size = round(base * self.scale)
+            font.configure(size=size if size != 0 else base)
+
+    def px(self, n):
+        """Scale a pixel size. / ピクセル寸法を倍率に合わせる。"""
+        return max(1, round(n * self.scale))
+
+    @property
+    def pct_w(self):
+        """Width of the "100%" text right of a bar. / バー右の % 欄の幅"""
+        return self.bold.measure("100%") + self.px(4)
+
+
 class BarWidget:
     """A single horizontal usage bar with a percentage label.
     / パーセンテージラベル付きの水平バー1本。"""
 
-    def __init__(self, parent, row, label_text):
+    def __init__(self, parent, row, label_text, style):
         # Left-side label (GPU / MEM / PWR) / 左端のラベル
         self.label = tk.Label(parent, text=label_text, width=4, anchor="e",
-                              bg=CARD_BG, fg=DIM, font=("Helvetica", 10))
+                              bg=CARD_BG, fg=DIM, font=style.normal)
         self.label.grid(row=row, column=0, sticky="e", padx=(6, 4))
 
         # Canvas hosts the background + fill rectangle + percent text.
-        # The text sits right of the bar (x >= BAR_W) so it never
+        # The text sits right of the bar (x >= bar_w) so it never
         # overlaps the fill, even at 100%.
         # Canvas に背景・塗りつぶし・%テキストを描画。テキストはバーの
-        # 右側 (x >= BAR_W) に置き、100% でも塗りと重ならないようにする。
-        self.canvas = tk.Canvas(parent, width=BAR_W + PCT_W, height=BAR_H,
+        # 右側 (x >= bar_w) に置き、100% でも塗りと重ならないようにする。
+        self.bar_w, self.bar_h = style.px(BAR_W), style.px(BAR_H)
+        width = self.bar_w + style.pct_w
+        self.canvas = tk.Canvas(parent, width=width, height=self.bar_h,
                                 bg=CARD_BG, highlightthickness=0)
         self.canvas.grid(row=row, column=1, sticky="w")
-        self.canvas.create_rectangle(0, 0, BAR_W, BAR_H,
+        self.canvas.create_rectangle(0, 0, self.bar_w, self.bar_h,
                                      fill=BAR_BG, width=0)
-        self.rect = self.canvas.create_rectangle(0, 0, 0, BAR_H,
+        self.rect = self.canvas.create_rectangle(0, 0, 0, self.bar_h,
                                                  fill=GOOD, width=0)
-        self.txt = self.canvas.create_text(BAR_W + PCT_W, BAR_H // 2,
+        self.txt = self.canvas.create_text(width, self.bar_h // 2,
                                            text="--%", anchor="e",
-                                           fill=FG, font=("Helvetica", 10,
-                                                           "bold"))
+                                           fill=FG, font=style.bold)
 
     def set(self, pct):
         """Update the bar width, color, and text for a new percent.
         / 使用率 % が渡されたらバー幅・色・テキストを更新する。"""
         # Clamp to [0, 100] / 値を 0〜100 にクランプ
         pct = max(0.0, min(100.0, pct))
-        w = int(BAR_W * pct / 100)
+        w = int(self.bar_w * pct / 100)
         c = color_for_pct(pct)
-        self.canvas.coords(self.rect, 0, 0, w, BAR_H)
+        self.canvas.coords(self.rect, 0, 0, w, self.bar_h)
         self.canvas.itemconfig(self.rect, fill=c)
         self.canvas.itemconfig(self.txt, text=f"{pct:.0f}%", fill=c)
 
 
-class HistoryGraph:
-    """A small line graph of the last GRAPH_POINTS samples of GPU
-    utilization (%) and temperature (°C), both on a 0-100 scale.
-    / 直近 GRAPH_POINTS 点の GPU 使用率 (%) と温度 (°C) の小さな折れ線
-      グラフ。どちらも 0〜100 の目盛りで描く。
-
-    Samples are kept even while the graph is hidden, so turning it on
-    shows the last minute right away.
-    / 非表示の間もサンプルは記録するので、表示に切り替えるとすぐに直近
-      1 分が出る。
+class History:
+    """The last GRAPH_SECONDS of GPU utilization and temperature of one
+    GPU. Kept by App per GPU, so it survives card rebuilds (text size,
+    compact view) and hidden graphs.
+    / GPU 1 枚の直近 GRAPH_SECONDS 秒の使用率と温度。App が GPU ごとに
+      持つので、カードの作り直し（文字サイズ・コンパクト表示）やグラフ
+      非表示の間も消えない。
     """
 
-    def __init__(self, parent, row):
-        self.util = deque(maxlen=GRAPH_POINTS)
-        self.temp = deque(maxlen=GRAPH_POINTS)
-        # Width 1 + sticky "ew": the canvas takes the card's width
-        # 幅 1 + sticky "ew" でカードの幅いっぱいに広がる
-        self.canvas = tk.Canvas(parent, width=1, height=GRAPH_H, bg=BAR_BG,
-                                highlightthickness=0)
-        self.canvas.grid(row=row, column=0, columnspan=2, sticky="ew",
-                         padx=6, pady=(0, 6))
-        self.canvas.bind("<Configure>", lambda e: self.draw())
+    def __init__(self, points):
+        self.util = deque(maxlen=points)
+        self.temp = deque(maxlen=points)
+
+    @property
+    def points(self):
+        return self.util.maxlen
 
     def add(self, util, temp):
         self.util.append(max(0.0, min(100.0, util)))
         self.temp.append(max(0.0, min(100.0, temp)))
+
+    def resize(self, points):
+        """Change the number of points, keeping the newest samples.
+        / 点数を変える（新しいサンプルを残す）。"""
+        self.util = deque(self.util, maxlen=points)
+        self.temp = deque(self.temp, maxlen=points)
+
+
+class HistoryGraph:
+    """A small line graph of a History: GPU utilization (%) and
+    temperature (°C), both on a 0-100 scale, newest at the right.
+    / History の小さな折れ線グラフ。GPU 使用率 (%) と温度 (°C) を
+      どちらも 0〜100 の目盛りで、最新を右端に描く。
+    """
+
+    def __init__(self, parent, row, style):
+        self.style = style
+        self.history = None
+        self.height = style.px(GRAPH_H)
+        # Width 1 + sticky "ew": the canvas takes the card's width
+        # 幅 1 + sticky "ew" でカードの幅いっぱいに広がる
+        self.canvas = tk.Canvas(parent, width=1, height=self.height,
+                                bg=BAR_BG, highlightthickness=0)
+        self.canvas.grid(row=row, column=0, columnspan=2, sticky="ew",
+                         padx=6, pady=(0, 6))
+        self.canvas.bind("<Configure>", lambda e: self.draw())
+
+    def show(self, history):
+        self.history = history
         if self.canvas.winfo_ismapped():
             self.draw()
 
@@ -782,18 +860,18 @@ class HistoryGraph:
             self.canvas.grid_remove()
 
     def draw(self):
-        c = self.canvas
-        w, h = c.winfo_width(), GRAPH_H
-        if w <= 1:
+        c, st, hist = self.canvas, self.style, self.history
+        w, h = c.winfo_width(), self.height
+        if w <= 1 or hist is None:
             return
         c.delete("all")
         # Plot area below the legend strip / 凡例の帯の下が描画領域
-        top, bottom = LEGEND_H + 3, h - 2
+        top, bottom = st.px(LEGEND_H) + 3, h - 2
         y_of = lambda v: bottom - v / 100 * (bottom - top)  # noqa: E731
         # 50 % / 50 °C guide line / 50 の目安線
         c.create_line(0, y_of(50), w, y_of(50), fill=CARD_BG)
-        step = (w - 1) / (GRAPH_POINTS - 1)
-        for values, color in ((self.temp, LINE_TEMP), (self.util, LINE_UTIL)):
+        step = (w - 1) / max(1, hist.points - 1)
+        for values, color in ((hist.temp, LINE_TEMP), (hist.util, LINE_UTIL)):
             if len(values) < 2:
                 continue
             # Newest sample at the right edge / 最新の値を右端に
@@ -802,13 +880,13 @@ class HistoryGraph:
             for i, v in enumerate(values):
                 pts += [x0 + i * step, y_of(v)]
             c.create_line(*pts, fill=color, width=1.5)
-        font = ("Helvetica", 8)
+        legend_x = 4 + st.small.measure("GPU %") + st.px(10)
         c.create_text(4, 1, text="GPU %", anchor="nw", fill=LINE_UTIL,
-                      font=font)
-        c.create_text(44, 1, text="Temp °C", anchor="nw", fill=LINE_TEMP,
-                      font=font)
-        c.create_text(w - 4, 1, text="last 60 s", anchor="ne", fill=DIM,
-                      font=font)
+                      font=st.small)
+        c.create_text(legend_x, 1, text="Temp °C", anchor="nw",
+                      fill=LINE_TEMP, font=st.small)
+        c.create_text(w - 4, 1, text=f"last {GRAPH_SECONDS} s", anchor="ne",
+                      fill=DIM, font=st.small)
 
 
 def pointer_inside(widget):
@@ -824,7 +902,7 @@ class GpuCard:
     """A card that displays the information of a single GPU.
     / GPU 1枚分の情報を表示するカード。"""
 
-    def __init__(self, parent, idx, name, show_graph=True):
+    def __init__(self, parent, idx, name, style, show_graph=True):
         self.index = idx
         self.name = name
         self.frame = tk.Frame(parent, bg=CARD_BG)
@@ -833,16 +911,15 @@ class GpuCard:
 
         # Title row: "GPU <idx>  <name>" / タイトル行
         tk.Label(self.frame, text=f"GPU {idx}  {name}", anchor="w",
-                 bg=CARD_BG, fg=FG,
-                 font=("Helvetica", 10, "bold")).grid(
+                 bg=CARD_BG, fg=FG, font=style.bold).grid(
             row=0, column=0, columnspan=2, sticky="ew", padx=6, pady=(5, 0))
 
         # Three usage bars: GPU / MEM / PWR / 使用率バー 3 本
-        self.util_bar = BarWidget(self.frame, 1, "GPU")
+        self.util_bar = BarWidget(self.frame, 1, "GPU", style)
         self.util_bar.canvas.grid(pady=(5, 2))
-        self.mem_bar = BarWidget(self.frame, 2, "MEM")
+        self.mem_bar = BarWidget(self.frame, 2, "MEM", style)
         self.mem_bar.canvas.grid(pady=(2, 2))
-        self.pwr_bar = BarWidget(self.frame, 3, "PWR")
+        self.pwr_bar = BarWidget(self.frame, 3, "PWR", style)
         self.pwr_bar.canvas.grid(pady=(2, 2))
 
         # Detail line: GiB / °C / W as separate labels so that only the
@@ -851,20 +928,20 @@ class GpuCard:
         detail = tk.Frame(self.frame, bg=CARD_BG)
         detail.grid(row=4, column=0, columnspan=2, sticky="ew",
                     padx=6, pady=(0, 4))
-        font = ("Helvetica", 10)
-        self.mem_lbl = tk.Label(detail, bg=CARD_BG, fg=DIM, font=font)
-        self.temp_lbl = tk.Label(detail, bg=CARD_BG, fg=DIM, font=font)
-        self.pwr_lbl = tk.Label(detail, bg=CARD_BG, fg=DIM, font=font)
+        self.mem_lbl = tk.Label(detail, bg=CARD_BG, fg=DIM, font=style.normal)
+        self.temp_lbl = tk.Label(detail, bg=CARD_BG, fg=DIM, font=style.normal)
+        self.pwr_lbl = tk.Label(detail, bg=CARD_BG, fg=DIM, font=style.normal)
         for lbl in (self.mem_lbl, self.temp_lbl, self.pwr_lbl):
             lbl.pack(side="left", padx=(0, 10))
 
-        self.graph = HistoryGraph(self.frame, 5)
+        self.graph = HistoryGraph(self.frame, 5, style)
         self.graph.set_visible(show_graph)
 
-    def update(self, g):
-        """Push one sample into the card. g is a dict from make_gpu().
-        / 1 サンプル分のデータをカードに反映する。
-        / g は make_gpu() が作る dict。"""
+    def update(self, g, history=None):
+        """Push one sample into the card. g is a dict from make_gpu();
+        history is this GPU's History for the graph.
+        / 1 サンプル分のデータをカードに反映する。g は make_gpu() の
+          dict、history はグラフ用のこの GPU の History。"""
         self.util_bar.set(g["util"])
         self.mem_bar.set(g["mem_pct"])
         self.pwr_bar.set(g["power_pct"])
@@ -873,7 +950,8 @@ class GpuCard:
                              fg=color_for_temp(g["temp"]))
         self.pwr_lbl.config(
             text=f"{g['power']:.0f}/{g['power_limit']:.0f} W")
-        self.graph.add(g["util"], g["temp"])
+        if history is not None:
+            self.graph.show(history)
 
     def set_graph_visible(self, on):
         self.graph.set_visible(on)
@@ -888,29 +966,27 @@ class CompactRow:
       メモリ・電力の %、温度）。GpuCard と同じインタフェース。
     """
 
-    def __init__(self, parent, idx, name):
+    def __init__(self, parent, idx, name, style):
         self.index = idx
         self.name = name
         self.frame = tk.Frame(parent, bg=CARD_BG)
         self.frame.grid(padx=6, pady=2, sticky="ew")
-        font = ("Helvetica", 10)
-        bold = ("Helvetica", 10, "bold")
         tk.Label(self.frame, text=f"GPU {idx}", bg=CARD_BG, fg=FG,
-                 font=bold).pack(side="left", padx=(6, 6), pady=3)
+                 font=style.bold).pack(side="left", padx=(6, 6), pady=3)
         self.pct_lbls = {}
         for key, short in (("util", "G"), ("mem_pct", "M"),
                            ("power_pct", "P")):
             tk.Label(self.frame, text=short, bg=CARD_BG, fg=DIM,
-                     font=font).pack(side="left")
+                     font=style.normal).pack(side="left")
             lbl = tk.Label(self.frame, text="--%", width=4, anchor="e",
-                           bg=CARD_BG, fg=FG, font=bold)
+                           bg=CARD_BG, fg=FG, font=style.bold)
             lbl.pack(side="left", padx=(0, 6))
             self.pct_lbls[key] = lbl
         self.temp_lbl = tk.Label(self.frame, text="--°C", width=5, anchor="e",
-                                 bg=CARD_BG, fg=DIM, font=font)
+                                 bg=CARD_BG, fg=DIM, font=style.normal)
         self.temp_lbl.pack(side="left", padx=(0, 6))
 
-    def update(self, g):
+    def update(self, g, history=None):
         for key, lbl in self.pct_lbls.items():
             pct = max(0.0, min(100.0, g[key]))
             lbl.config(text=f"{pct:.0f}%", fg=color_for_pct(pct))
@@ -925,8 +1001,9 @@ class Tooltip:
     """A borderless popup shown next to a widget (process list).
     / ウィジェットの横に出す枠なしのポップアップ（プロセス一覧用）。"""
 
-    def __init__(self, root):
+    def __init__(self, root, style):
         self.root = root
+        self.style = style
         self.win = None
         self.owner = None   # Card the tooltip belongs to / 表示中のカード
 
@@ -938,7 +1015,7 @@ class Tooltip:
             self.win.overrideredirect(True)
             self.win.attributes("-topmost", True)
             self.label = tk.Label(self.win, justify="left", bg=BAR_BG, fg=FG,
-                                  font="TkFixedFont", padx=8, pady=6)
+                                  font=self.style.mono, padx=8, pady=6)
             self.label.pack(padx=1, pady=1)   # 1px DIM border / 枠線
         self.owner = owner
         self.label.config(text=text)
@@ -1019,18 +1096,24 @@ class App:
         self.opacity_var = tk.IntVar(
             value=opacity if opacity in OPACITY_LEVELS else 100)
         self.root.wm_attributes("-alpha", self.opacity_var.get() / 100)
+        self.style = Style(self.root, cfg.get("text_size", "medium"))
+        self.text_size_var = tk.StringVar(value=self.style.text_size)
+        interval = cfg.get("interval_ms", REFRESH_MS)
+        self.interval_var = tk.IntVar(
+            value=interval if interval in UPDATE_INTERVALS_MS else REFRESH_MS)
 
         # --- Header: title + Always-on-top button / ヘッダー ---
         header = tk.Frame(self.root, bg=BG)
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(0, weight=1)
         tk.Label(header, text="GPU Monitor", bg=BG, fg=FG,
-                 font=("Helvetica", 12, "bold")).grid(
+                 font=self.style.title).grid(
             row=0, column=0, sticky="w", padx=10, pady=(8, 0))
         self.top_btn = tk.Button(
             header, text="Always on top",
             activebackground=GOOD, activeforeground=BG,
             relief="flat", bd=0, padx=8, pady=2, cursor="hand2",
+            font=self.style.normal,
             command=lambda: self._save_topmost(not self.topmost))
         self.top_btn.grid(row=0, column=1, sticky="e", padx=(10, 2),
                           pady=(8, 0))
@@ -1039,7 +1122,7 @@ class App:
         self.menu_btn = tk.Button(
             header, text="⋮", bg=BG, fg=DIM, activebackground=CARD_BG,
             activeforeground=FG, relief="flat", bd=0, padx=6, pady=0,
-            cursor="hand2", font=("Helvetica", 12, "bold"),
+            cursor="hand2", font=self.style.title,
             command=self._popup_menu_at_button)
         self.menu_btn.grid(row=0, column=2, sticky="e", padx=(0, 4),
                            pady=(8, 0))
@@ -1051,16 +1134,18 @@ class App:
 
         # Status lines (GPU count + total memory used) / 状態表示
         self.status = tk.Label(self.root, text="Loading...",
-                               bg=BG, fg=DIM, font=("Helvetica", 10))
+                               bg=BG, fg=DIM, font=self.style.normal)
         self.status.grid(row=2, column=0, sticky="ew", padx=10, pady=(2, 0))
         self.mem_status = tk.Label(self.root, text="", anchor="w",
-                                   bg=BG, fg=DIM, font=("Helvetica", 10))
+                                   bg=BG, fg=DIM, font=self.style.normal)
         self.mem_status.grid(row=3, column=0, sticky="ew", padx=10, pady=(0, 8))
 
-        # Right-click menu / 右クリックメニュー
-        self.menu = tk.Menu(self.root, tearoff=0, bg=CARD_BG, fg=FG,
-                            activebackground=BAR_BG, activeforeground=FG,
-                            selectcolor=GOOD, bd=0)
+        # Menu (right-click or "⋮") / メニュー（右クリックか「⋮」）
+        def new_menu(parent):
+            return tk.Menu(parent, tearoff=0, bg=CARD_BG, fg=FG,
+                           activebackground=BAR_BG, activeforeground=FG,
+                           selectcolor=GOOD, bd=0, font=self.style.normal)
+        self.menu = new_menu(self.root)
         self.menu.add_checkbutton(
             label="Always on top", variable=self.topmost_var,
             command=lambda: self._save_topmost(self.topmost_var.get()))
@@ -1070,9 +1155,19 @@ class App:
         self.menu.add_checkbutton(
             label=GRAPH_MENU_LABEL, variable=self.graph_var,
             command=self._toggle_graph)
-        opacity_menu = tk.Menu(self.menu, tearoff=0, bg=CARD_BG, fg=FG,
-                               activebackground=BAR_BG, activeforeground=FG,
-                               selectcolor=GOOD, bd=0)
+        size_menu = new_menu(self.menu)
+        for name in TEXT_SIZES:
+            size_menu.add_radiobutton(
+                label=name.capitalize(), value=name,
+                variable=self.text_size_var, command=self._set_text_size)
+        self.menu.add_cascade(label="Text size", menu=size_menu)
+        interval_menu = new_menu(self.menu)
+        for ms in UPDATE_INTERVALS_MS:
+            interval_menu.add_radiobutton(
+                label=f"{ms / 1000:g} s", value=ms,
+                variable=self.interval_var, command=self._set_interval)
+        self.menu.add_cascade(label="Update interval", menu=interval_menu)
+        opacity_menu = new_menu(self.menu)
         for level in OPACITY_LEVELS:
             opacity_menu.add_radiobutton(
                 label=f"{level}%", value=level, variable=self.opacity_var,
@@ -1087,8 +1182,11 @@ class App:
                               state="disabled")
         self.root.bind("<Button-3>", self._popup_menu)
 
-        self.tooltip = Tooltip(self.root)
+        self.tooltip = Tooltip(self.root, self.style)
         self.cards = []
+        # Graph history per GPU (index, name); survives card rebuilds
+        # GPU (index, name) ごとのグラフ履歴。カードを作り直しても残る
+        self.history = {}
         self._card_keys = []   # [(index, name)] of the cards / カードの構成
         self._max_req = 0   # Width stabilizer (see _fit) / 幅安定化用
         self._placed = False   # _place_once done? / 初期配置済みか
@@ -1137,9 +1235,40 @@ class App:
           幅が縮むのを許す。"""
         update_config(compact=self.compact_var.get())
         self._apply_compact_layout()
+        self._relayout()
+
+    def _set_text_size(self):
+        """Menu handler: change the text size and persist it. Fonts
+        follow at once; cards are rebuilt for the new pixel sizes.
+        / メニューから: 文字サイズを変えて保存する。フォントはすぐ追従し、
+          カードは新しいピクセル寸法で作り直す。"""
+        self.style.set_size(self.text_size_var.get())
+        update_config(text_size=self.style.text_size)
+        self._relayout()
+
+    def _set_interval(self):
+        """Menu handler: change the update interval and persist it. The
+        graphs keep covering GRAPH_SECONDS, so their point count changes.
+        / メニューから: 更新間隔を変えて保存する。グラフは常に
+          GRAPH_SECONDS 秒分なので、点数を変える。"""
+        update_config(interval_ms=self.interval_var.get())
+        for hist in self.history.values():
+            hist.resize(self.graph_points)
+        self.refresh()   # reschedules with the new interval / 新しい間隔で再予約
+
+    @property
+    def graph_points(self):
+        """Samples in GRAPH_SECONDS at the current interval.
+        / 現在の更新間隔で GRAPH_SECONDS 秒分の点数。"""
+        return max(2, GRAPH_SECONDS * 1000 // self.interval_var.get())
+
+    def _relayout(self):
+        """Rebuild the cards with the latest values, letting the width
+        shrink once (after a mode or text size change).
+        / 直近の値でカードを作り直し、1 回だけ幅が縮むのを許す
+          （表示モードや文字サイズの変更後）。"""
         self._rebuild_cards(self._last_gpus)
-        for card, g in zip(self.cards, self._last_gpus):
-            card.update(g)
+        self._update_cards(self._last_gpus)
         self._max_req = 0
         self.root.update_idletasks()
         self._fit()
@@ -1273,16 +1402,26 @@ class App:
         self.cards = []
         for g in gpus:
             if self.compact_var.get():
-                card = CompactRow(self.cards_frame, g["index"], g["name"])
+                card = CompactRow(self.cards_frame, g["index"], g["name"],
+                                  self.style)
             else:
                 card = GpuCard(self.cards_frame, g["index"], g["name"],
-                               show_graph=self.graph_var.get())
+                               self.style, show_graph=self.graph_var.get())
             card.frame.bind("<Enter>",
                             lambda e, c=card: self._on_card_enter(c))
             card.frame.bind("<Leave>",
                             lambda e, c=card: self._on_card_leave(c))
             self.cards.append(card)
         self._card_keys = [(g["index"], g["name"]) for g in gpus]
+        # Drop the history of GPUs that are gone / 消えた GPU の履歴は捨てる
+        self.history = {k: h for k, h in self.history.items()
+                        if k in self._card_keys}
+
+    def _update_cards(self, gpus):
+        """Show gpus (the latest query() result) on the cards.
+        / gpus（直近の query() の結果）をカードに表示する。"""
+        for card, g in zip(self.cards, gpus):
+            card.update(g, self.history.get((g["index"], g["name"])))
 
     def close(self):
         """Save the window position, release the source, and quit.
@@ -1339,7 +1478,8 @@ class App:
             self.status.config(text=f"Error: {short_error(e)}", fg=BAD)
             self.mem_status.config(text="")
             self._place_once()
-            self._after_id = self.root.after(REFRESH_MS, self.refresh)
+            self._after_id = self.root.after(self.interval_var.get(),
+                                             self.refresh)
             return
         self._last_error = None
         self._last_gpus = gpus
@@ -1347,9 +1487,14 @@ class App:
         if [(g["index"], g["name"]) for g in gpus] != self._card_keys:
             self._rebuild_cards(gpus)
 
-        # Update each card with fresh numbers / 各カードを最新値で更新
-        for card, g in zip(self.cards, gpus):
-            card.update(g)
+        # Record the graph history, then update each card
+        # グラフ履歴に記録してから各カードを更新
+        for g in gpus:
+            key = (g["index"], g["name"])
+            if key not in self.history:
+                self.history[key] = History(self.graph_points)
+            self.history[key].add(g["util"], g["temp"])
+        self._update_cards(gpus)
         # Keep the process list current while it is shown
         # 表示中のプロセス一覧も更新する
         if self.tooltip.owner in self.cards:
@@ -1369,7 +1514,7 @@ class App:
         self._fit()
 
         # Schedule the next tick / 次回の更新予約
-        self._after_id = self.root.after(REFRESH_MS, self.refresh)
+        self._after_id = self.root.after(self.interval_var.get(), self.refresh)
 
 
 def main():

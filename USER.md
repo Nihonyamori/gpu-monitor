@@ -54,14 +54,18 @@ Click the **⋮** button at the top-right of the window, or right-click anywhere
 | Always on top | Same as the "Always on top" button |
 | Compact view | Show each GPU on one line: `GPU 0  G 17%  M 9%  P 8%  48°C` (G = GPU, M = memory, P = power). The graphs and the total-memory line are hidden. Hover still shows the processes. |
 | Show history graph (60 s) | Show / hide the graphs (not available in compact view) |
+| Text size | Small / Medium / Large (fonts, bars and graphs) |
+| Update interval | 0.5 s / 1 s / 2 s / 5 s. The graph always shows the last 60 seconds |
 | Opacity | Make the window see-through: 100% / 90% / 80% / 70% / 60% |
 | Move to top-right | Move the window back to the top-right corner |
 | Quit | Close the app (the window position is saved) |
-| GPU Monitor 1.0.0 | Version (cannot be clicked) |
+| GPU Monitor 1.1.0 | Version (cannot be clicked) |
 
 ---
 
 ## How to Start
+
+> Installed with pipx (see README)? Just run `gpu-monitor`; it takes the same options as `./gpu_monitor.py`.
 
 1. Open a terminal.
 2. Run the following:
@@ -72,7 +76,7 @@ cd ~/programs/gpu_monitor
 ```
 
 - The first time, the window appears at the **top-right** of the screen. After that it opens **where you last closed it** (drag it anywhere you like).
-- The display is automatically updated approximately every **0.5 seconds**.
+- The display is automatically updated approximately every **0.5 seconds** (can be changed in the menu).
 - To close the app, click the ✕ button on the window (or press Ctrl+C in the terminal). The window position is saved either way.
 
 ### Start from the application menu
@@ -160,13 +164,16 @@ A. Normally the program reads the GPU data directly from the NVIDIA driver libra
 Saved in `~/.config/gpu_monitor.json`:
 
 ```json
-{ "always_on_top": true, "show_graph": true, "compact": false, "opacity": 100, "x": 2932, "y": 20 }
+{ "always_on_top": true, "show_graph": true, "compact": false, "opacity": 100,
+  "text_size": "medium", "interval_ms": 500, "x": 2932, "y": 20 }
 ```
 
 - `always_on_top`: `true` = Always on top ON (displayed at the very front), `false` = OFF (normal window)
 - `show_graph`: `true` = show the history graphs (default), `false` = hide them
 - `compact`: `true` = compact view, `false` = cards (default)
 - `opacity`: `100`, `90`, `80`, `70` or `60` (%). Other values are treated as 100
+- `text_size`: `small`, `medium` (default) or `large`
+- `interval_ms`: update interval in ms: `500` (default), `1000`, `2000` or `5000`
 - `x`, `y`: Window position (pixels from the top-left of the screen), saved when the app is closed
 
 To change this manually, edit the file while the app is closed, then restart `./gpu_monitor.py`.

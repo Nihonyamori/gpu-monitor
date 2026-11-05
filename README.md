@@ -8,6 +8,10 @@ NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモ
 
 ![GPU Monitor Screenshot](gpu_monitor.png)
 
+| Compact view / コンパクト表示 | Process list on hover / マウスを乗せるとプロセス一覧（example data / 例示データ） |
+|---|---|
+| ![Compact view](docs/compact.png) | ![Process list](docs/processes.png) |
+
 ---
 
 ## English
@@ -15,7 +19,7 @@ NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモ
 ### What it does
 
 * Monitors all NVIDIA GPUs, reading NVML (`libnvidia-ml.so.1`) directly; falls back to `nvidia-smi`
-* Refreshes every 0.5 s
+* Refreshes every 0.5 s (selectable: 0.5 / 1 / 2 / 5 s)
 * Per GPU card shows:
   * **GPU** bar – GPU utilization %
   * **MEM** bar – memory utilization %
@@ -26,7 +30,7 @@ NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモ
 * Hover over a card to see the processes using that GPU (PID, user, memory, command)
 * Cards are rebuilt automatically when GPUs are added or removed
 * "Always on top" toggle button
-* Menu (the "⋮" button or right-click): always on top, compact view (one line per GPU), history graph, window opacity, move to the top-right, quit
+* Menu (the "⋮" button or right-click): always on top, compact view (one line per GPU), history graph, text size, update interval, window opacity, move to the top-right, quit
 * Single instance: launching it again brings the running window to the front
 * Remembers the window position; the first launch places it at the top-right
 * Settings are persisted to `~/.config/gpu_monitor.json`
@@ -40,7 +44,17 @@ NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモ
 
 No pip packages needed. Uses only the standard library (`tkinter`, `ctypes`, `subprocess`, ...).
 
-### Quick start
+### Install with pipx
+
+```bash
+sudo apt install python3-tk pipx      # Tkinter is an OS package on Ubuntu
+pipx install git+https://github.com/Nihonyamori/gpu-monitor
+gpu-monitor                           # same options as ./gpu_monitor.py
+```
+
+Update with `pipx upgrade gpu-monitor`. For the application menu entry and icon, use `install.sh` from a clone (below).
+
+### Quick start (from a clone)
 
 ```bash
 cd ~/programs/gpu_monitor
@@ -80,6 +94,9 @@ The state is automatically saved to `~/.config/gpu_monitor.json` and restored on
 * `install.sh` – adds the program to the application menu / autostart
 * `icon.svg` / `icon.png` – application icon (menu / window)
 * `tests/` – unit tests (`python3 -m unittest discover -s tests`); run on GitHub Actions without a GPU
+* `pyproject.toml` – package definition for pipx / pip
+* `scripts/release_notes.py` – CHANGELOG section for a release (used by GitHub Actions)
+* `docs/` – README images
 * `CHANGELOG.md` – changes per version
 * `README.md` – this file
 * `USER.md` – user guide (English)
@@ -101,7 +118,7 @@ MIT. See [LICENSE](LICENSE).
 ### できること
 
 * 全 NVIDIA GPU を監視。NVML（`libnvidia-ml.so.1`）を直接読み、使えなければ `nvidia-smi` を使う
-* 0.5 秒間隔で更新
+* 0.5 秒間隔で更新（0.5 / 1 / 2 / 5 秒から選べる）
 * GPU ごとにカード表示：
   * **GPU** バー – GPU 使用率 %
   * **MEM** バー – メモリ使用率 %
@@ -112,7 +129,7 @@ MIT. See [LICENSE](LICENSE).
 * カードにマウスを乗せると、その GPU を使っているプロセス（PID・ユーザ・メモリ・コマンド）を表示
 * GPU が増減したらカードを自動で作り直す
 * 「Always on top」トグルボタン
-* メニュー（「⋮」ボタンか右クリック）：常時手前・コンパクト表示（1 GPU 1 行）・グラフ表示・不透明度・右上へ移動・終了
+* メニュー（「⋮」ボタンか右クリック）：常時手前・コンパクト表示（1 GPU 1 行）・グラフ表示・文字サイズ・更新間隔・不透明度・右上へ移動・終了
 * 二重起動しない（もう一度起動すると、起動中のウィンドウが手前に出る）
 * ウィンドウ位置を記憶（初回は画面右上に配置）
 * 設定は `~/.config/gpu_monitor.json` に永続保存
@@ -126,7 +143,17 @@ MIT. See [LICENSE](LICENSE).
 
 外部パッケージ不要。標準ライブラリのみ使用。
 
-### 起動方法
+### pipx でインストール
+
+```bash
+sudo apt install python3-tk pipx      # Ubuntu では Tkinter は OS のパッケージ
+pipx install git+https://github.com/Nihonyamori/gpu-monitor
+gpu-monitor                           # オプションは ./gpu_monitor.py と同じ
+```
+
+更新は `pipx upgrade gpu-monitor`。アプリメニューへの登録とアイコンは、リポジトリを clone して `install.sh` を使います（下記）。
+
+### 起動方法（clone した場合）
 
 ```bash
 cd ~/programs/gpu_monitor
@@ -166,6 +193,9 @@ cd ~/programs/gpu_monitor
 * `install.sh` – アプリメニュー・自動起動への登録
 * `icon.svg` / `icon.png` – アプリのアイコン（メニュー用 / ウィンドウ用）
 * `tests/` – テスト（`python3 -m unittest discover -s tests`）。GitHub Actions で GPU なしに実行
+* `pyproject.toml` – pipx / pip 用のパッケージ定義
+* `scripts/release_notes.py` – リリース用に CHANGELOG の該当部分を取り出す（GitHub Actions が使う）
+* `docs/` – README の画像
 * `CHANGELOG.md` – バージョンごとの変更履歴
 * `README.md` – このファイル
 * `USER.md` – ユーザ向けガイド（英語）

@@ -272,10 +272,14 @@ class TestApp(TempDirTest):
 
     def test_graph_history_and_toggle(self):
         app = self.make_app([gpu(0)])
-        for _ in range(gm.GRAPH_POINTS + 10):
+        points = gm.GRAPH_SECONDS * 1000 // gm.REFRESH_MS
+        self.assertEqual(app.graph_points, points)
+        for _ in range(points + 10):
             app.refresh()
+        hist = app.history[(0, "Fake GPU")]
+        self.assertEqual(len(hist.util), points)
         graph = app.cards[0].graph
-        self.assertEqual(len(graph.util), gm.GRAPH_POINTS)
+        self.assertIs(graph.history, hist)
         self.assertTrue(graph.canvas.winfo_ismapped())
         app.graph_var.set(False)
         app._toggle_graph()
@@ -374,6 +378,95 @@ class TestApp(TempDirTest):
         last = app.menu.index("end")
         self.assertEqual(app.menu.entrycget(last, "label"),
                          f"GPU Monitor {gm.__version__}")
+
+
+    def test_text_size(self):
+        app = self.make_app([gpu(0)])
+        app.refresh()
+        hist = app.history[(0, "Fake GPU")]
+        medium_w = app.root.winfo_width()
+        medium_font = app.style.normal.cget("size")
+        app.text_size_var.set("large")
+        app._set_text_size()
+        app.root.update()
+        self.assertGreater(app.style.normal.cget("size"), medium_font)
+        # Header labels use the named fonts, so they follow at once
+        # ヘッダーは名前付きフォントなのですぐ追従する
+        self.assertEqual(str(app.status.cget("font")), str(app.style.normal))
+        self.assertGreater(app.root.winfo_width(), medium_w)
+        # "100%" still fits right of the bar / "100%" がバーの右に収まる
+        bar = app.cards[0].util_bar
+        self.assertGreaterEqual(int(bar.canvas.cget("width")) - bar.bar_w,
+                                app.style.bold.measure("100%"))
+        # History survives the rebuild / 作り直しても履歴は残る
+        self.assertIs(app.cards[0].graph.history, hist)
+        self.assertEqual(gm.load_config()["text_size"], "large")
+        app.text_size_var.set("small")
+        app._set_text_size()
+        app.root.update()
+        self.assertLess(app.root.winfo_width(), medium_w)
+
+    def test_unknown_text_size_in_config(self):
+        gm.update_config(text_size="huge", interval_ms=123)
+        app = self.make_app([gpu(0)])
+        self.assertEqual(app.style.text_size, "medium")
+        self.assertEqual(app.interval_var.get(), gm.REFRESH_MS)
+
+    def test_update_interval(self):
+        app = self.make_app([gpu(0)])
+        for _ in range(5):
+            app.refresh()
+        app.interval_var.set(2000)
+        app._set_interval()
+        self.assertEqual(app.graph_points, 30)   # 60 s / 2 s
+        hist = app.history[(0, "Fake GPU")]
+        self.assertEqual(hist.points, 30)
+        # 1 at start + 5 + 1 by _set_interval; kept / 値は残る
+        self.assertEqual(len(hist.util), 7)
+        self.assertEqual(gm.load_config()["interval_ms"], 2000)
+        # The next tick is scheduled at the new interval / 新しい間隔で予約
+        info = app.root.tk.call("after", "info", app._after_id)
+        self.assertIn("refresh", str(info))
+        with mock.patch.object(app.root, "after",
+                               wraps=app.root.after) as after:
+            app.refresh()
+        after.assert_called_with(2000, app.refresh)
+
+
+class TestReleaseNotes(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parent.parent
+
+    def setUp(self):
+        sys.path.insert(0, str(self.ROOT / "scripts"))
+        self.addCleanup(sys.path.remove, str(self.ROOT / "scripts"))
+        import release_notes
+        self.rn = release_notes
+
+    CHANGELOG = ("# Changelog\n\n## [1.1.0] - 2026-12-01\n\n### Added\n- B\n\n"
+                 "## [1.0.0] - 2026-11-05\n\n- A\n")
+
+    def test_section(self):
+        self.assertEqual(self.rn.release_notes("1.1.0", self.CHANGELOG),
+                         "### Added\n- B\n")
+        self.assertEqual(self.rn.release_notes("1.0.0", self.CHANGELOG),
+                         "- A\n")
+
+    def test_missing_or_unreleased(self):
+        with self.assertRaises(ValueError):
+            self.rn.release_notes("2.0.0", self.CHANGELOG)
+        with self.assertRaises(ValueError):
+            self.rn.release_notes(
+                "1.2.0", "## [1.2.0] - Unreleased\n- C\n")
+
+    def test_module_version_matches(self):
+        self.assertEqual(self.rn.module_version(), gm.__version__)
+
+    def test_tag_must_match_version(self):
+        out = subprocess.run(
+            [sys.executable, str(self.ROOT / "scripts" / "release_notes.py"),
+             "v0.0.1"], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("__version__", out.stderr)
 
 
 class TestVersion(unittest.TestCase):

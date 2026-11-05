@@ -2,7 +2,9 @@ name: test
 
 on:
   push:
+    branches: ["**"]   # tags run this through release.yml / タグは release.yml 経由
   pull_request:
+  workflow_call:       # used by release.yml / release.yml から呼ばれる
 
 jobs:
   test:
@@ -15,3 +17,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb
       - name: Run tests
         run: xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
+      - name: Install with pipx and run the command
+        run: |
+          pipx install .
+          gpu-monitor --version

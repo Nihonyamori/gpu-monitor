@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpu-monitor"
+dynamic = ["version"]
+description = "A tiny always-visible window showing NVIDIA GPU usage, memory, power, temperature and processes"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Takuya Saito" }]
+requires-python = ">=3.8"
+# Only the standard library. Tkinter comes from the OS (Ubuntu: python3-tk).
+# 標準ライブラリのみ。Tkinter は OS のパッケージ（Ubuntu: python3-tk）。
+dependencies = []
+classifiers = [
+    "Environment :: X11 Applications",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Monitoring",
+]
+
+[project.urls]
+Homepage = "https://github.com/Nihonyamori/gpu-monitor"
+
+[project.scripts]
+gpu-monitor = "gpu_monitor:main"
+
+[tool.setuptools]
+py-modules = ["gpu_monitor"]
+
+[tool.setuptools.dynamic]
+version = { attr = "gpu_monitor.__version__" }
