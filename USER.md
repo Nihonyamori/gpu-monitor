@@ -1,123 +1,115 @@
-# GPU Monitor — ユーザ向けガイド
+# GPU Monitor — User Guide
 
-お使いの PC にある NVIDIA GPU の
-「使用率」「メモリ使用量」「消費電力」「温度」を
-ワンクリックでウィンドウにリアルタイム表示する小さなプログラムです。
-難しい設定は不要で、起動すればすぐに見られます。
+This is a tiny program that allows you to monitor the "utilization," "memory usage," "power consumption," and "temperature" of the NVIDIA GPU(s) in your PC in real-time via a small window. No complex setup is required; just run it to start monitoring.
 
-- 場所: `~/programs/gpu_monitor/`
-- 本体: `gpu_monitor.py`
-- 必要環境: Ubuntu（デスクトップ） + NVIDIA ドライバ（`nvidia-smi` が利用できていること）
-- 読みやすい画面は暗色テーマです。
+- Location: `~/programs/gpu_monitor/`
+- Main file: `gpu_monitor.py`
+- Requirements: Ubuntu (Desktop) + NVIDIA Drivers (`nvidia-smi` must be available)
+- Theme: Dark theme for better readability.
 
 ---
 
-## 見られる情報
+## Information Displayed
 
-GPUごとに次の項目を見ます。
+For each GPU, the following items are displayed:
 
-| 項目 | 表示例 | 説明 |
+| Item | Example | Description |
 |---|---|---|
-| GPU名 | `GPU 0  NVIDIA GeForce GTX 1070` | どのGPUか |
-| **GPU**（bar） | 緑 → 黄 → 赤のバー + % | GPUの計算負荷（%） |
-| **MEM**（bar） | 緑 → 黄 → 赤のバー + % | メモリ使用率（%） |
-| **PWR**（bar） | 緑 → 黄 → 赤のバー + % | 消費電力の上限に対する使用率（%） |
-| 詳細行 | `7007/8192 MiB  77°C  60/230 W` | メモリ使用量/総量 (MiB) ・温度(°C) ・消費電力/上限(W) |
-| 最下行 | `2 GPUs total memory: 21863 MiB used` | GPU数とメモリ合計 |
+| GPU Name | `GPU 0  NVIDIA GeForce GTX 1070` | Which GPU is being monitored |
+| **GPU** (bar) | Green $\rightarrow$ Yellow $\rightarrow$ Red bar + % | GPU compute load (%) |
+| **MEM** (bar) | Green $\rightarrow$ Yellow $\rightarrow$ Red bar + % | Memory utilization (%) |
+| **PWR** (bar) | Green $\rightarrow$ Yellow $\rightarrow$ Red bar + % | Power draw vs. Power limit (%) |
+| Detail Line | `7007/8192 MiB  77°C  60/230 W` | Memory used/total (MiB), Temp (°C), Power draw/limit (W) |
+| Bottom Line | `2 GPUs total memory: 21863 MiB used` | Total number of GPUs and total memory used |
 
-### 色の意味（バーがどの色か）
-- 🟢 **緑**   : 70% 未満（余裕あり）
-- 🟡 **黄**   : 70〜89%（やや混み）
-- 🔴 **赤**   : 90% 以上（ほぼフル）
+### Color Meaning (Bar colors)
+- 🟢 **Green**: Below 70% (Plenty of headroom)
+- 🟡 **Yellow**: 70–89% (Moderate load)
+- 🔴 **Red**: 90% or above (Almost full)
 
-> メモリ量・温度・消費電力の絶対値はバーの下にある小さな文字行に表示されます。
+> Absolute values for memory, temperature, and power are displayed in the small text line below the bars.
 
 ---
 
-## 起動方法
+## How to Start
 
-1. ターミナルを開く
-2. 以下を実行
+1. Open a terminal.
+2. Run the following:
 
 ```bash
 cd ~/programs/gpu_monitor
 ./gpu_monitor.py
 ```
 
-- ウィンドウが**画面右上**に出てきます。
-- 約 **0.5秒**ごとに表示が自動更新されます。
-- 閉じる時はウィンドウの ✕ を押すだけです。
+- A window will appear at the **top-right** of the screen.
+- The display is automatically updated approximately every **0.5 seconds**.
+- To close the app, simply click the ✕ button on the window.
 
-### オプション（コマンド）
+### Options (Command Line)
 
-| コマンド | 意味 |
+| Command | Meaning |
 |---|---|
-| `./gpu_monitor.py` | 通常起動（前回の「常に手前」の状態をそのまま使う） |
-| `./gpu_monitor.py -A` | **起動した直後は必ず常時手前に表示**する |
-| `./gpu_monitor.py --help` | オプション一覧を表示 |
+| `./gpu_monitor.py` | Normal start (remembers the last "Always on top" setting) |
+| `./gpu_monitor.py -A` | **Force "Always on top"** from the start |
+| `./gpu_monitor.py --help` | Show help/options |
 
 ---
 
-## 「常に手前」（常時手前に重ねて表示）
+## "Always on top" (Keep window on top)
 
-他のウィンドウの後ろに隠されず、常に手前に表示させたい場合は：
+If you want the window to stay visible and not be hidden behind other windows:
 
-- ウィンドウ右上の **「Always on top」** ボタンを押すと ON/OFF が切り替わります。  
-  - ボタンが **緑色** になっている時が ON（常時手前）状態です。  
-  - 灰色（暗色）の時は OFF です。
-- この状態は**自動で保存**されるので、次回起動時から引き継がれます。  
-  （設定ファイル: `~/.config/gpu_monitor.json`）
+- Click the **"Always on top"** button at the top-right of the window to toggle it.
+  - When the button is **Green**, it is ON (Always on top).
+  - When the button is grey/dark, it is OFF.
+- This state is **automatically saved**, so it will be remembered the next time you start the program.
+  (Config file: `~/.config/gpu_monitor.json`)
 
-> 常時手前を「起動時からずっと ON にしたい」場合は `-A` で起動してください。  
-> ボタンで後から OFF にした場合は、その操作が優先されて保存されます。
-
----
-
-## よくある質問（FAQ）
-
-**Q. 「エラー: ...」と出ました。**
-A. `nvidia-smi` が動いていない（NVIDIA ドライバ未導入か、GPUが認識されていない）可能性があります。
-   ターミナルで直接 `nvidia-smi` を実行して、GPU情報が表示されるか確認してください。
-
-**Q. GPUが2つあるのに1つしか出ません。**
-A. `nvidia-smi --query-gpu=name --format=csv,noheader` で認識されているGPU数を確認してください。
-   ドライバ/設定上2枚目のGPUが有効化されていない可能性があります。
-
-**Q. 負荷がほぼゼロでバーが0%のままです。**
-A. 正常です。GPUに作業がなければ0%（緑）です。動画再生やゲームなど実行すると動きます。
-
-**Q. 温度が高いのは大丈夫ですか？**
-A. 表示は参考値です。GPU種別ごとに耐熱温度が異なります。
-   急激に上がり続ける、ファンが異常に回る場合などはお住まいの環境/設定を確認してください。
-
-**Q. 起動してもウィンドウが消えません／表示されません。**
-A. ディスプレイ環境（`DISPLAY`）が設定されているか確認してください。
-   通常はデスクトップからターミナルで上記コマンドを実行すると出るはずです。
+> To keep it ON from the moment you launch, use the `-A` option.
+> If you manually turn it OFF via the button, that setting takes priority and is saved.
 
 ---
 
-## 設定ファイル
+## FAQ
 
-`~/.config/gpu_monitor.json` に保存します。現在保存される項目は1つです。
+**Q. I see an "Error: ..." message.**
+A. It is likely that `nvidia-smi` is not working (NVIDIA drivers are not installed or the GPU is not recognized). Please try running `nvidia-smi` directly in the terminal to check if GPU information is displayed.
+
+**Q. I have two GPUs, but only one is shown.**
+A. Check the number of recognized GPUs by running `nvidia-smi --query-gpu=name --format=csv,noheader`. It's possible the second GPU is not enabled in the drivers/settings.
+
+**Q. The load is almost zero and the bar stays at 0%.**
+A. This is normal. If there is no work for the GPU, it will be 0% (Green). Try playing a video or running a game to see it move.
+
+**Q. Is it okay if the temperature is high?**
+A. These values are for reference. Heat tolerance varies by GPU model. If the temperature rises sharply or the fan spins abnormally, please check your system environment.
+
+**Q. The window doesn't appear after starting.**
+A. Please check if your `DISPLAY` environment is correctly set. The program should appear if run from a terminal within a desktop environment.
+
+---
+
+## Config File
+
+Saved in `~/.config/gpu_monitor.json`. Currently, only one item is stored:
 
 ```json
 { "always_on_top": true }
 ```
 
-- `true`  : 常時手前 ON（画面の一番手前に表示）
-- `false` : 常時手前 OFF（普通のウィンドウ）
+- `true`: Always on top ON (displayed at the very front)
+- `false`: Always on top OFF (normal window)
 
-手動で変更したい場合はこのファイルを開き、`true` / `false` を入れ替えて保存、
-そのあと `./gpu_monitor.py` を起動し直してください。
-（ファイルが壊れている場合は、プログラム側は無視して既定値で起動します。）
+To change this manually, open the file, switch `true`/`false`, save it, and restart `./gpu_monitor.py`.
+(If the file is corrupted, the program will ignore it and boot with default settings.)
 
 ---
 
-## 場所
+## File Locations
 
-| 物 | パス |
+| Item | Path |
 |---|---|
-| プログラム本体 | `~/programs/gpu_monitor/gpu_monitor.py` |
-| ユーザ用説明（このファイル） | `~/programs/gpu_monitor/USER.md` |
-| 開発者用説明 | `~/programs/gpu_monitor/DEVELOPER.md` |
-| 設定ファイル | `~/.config/gpu_monitor.json` |
+| Program | `~/programs/gpu_monitor/gpu_monitor.py` |
+| User Guide (Japanese) | `~/programs/gpu_monitor/USER_J.md` |
+| Developer Guide | `~/programs/gpu_monitor/DEVELOPER.md` |
+| Config File | `~/.config/gpu_monitor.json` |
