@@ -14,6 +14,8 @@ NVIDIA GPU の負荷（GPU使用率・メモリ使用率・消費電力・温度
 programs/gpu_monitor/
 ├── gpu_monitor.py     # 本体（全ロジックを1ファイルに集約）
 ├── install.sh         # アプリメニュー・自動起動への登録 / 削除
+├── icon.svg           # アイコン原本（メニュー用）
+├── icon.png           # icon.svg から作った 256px PNG（ウィンドウ・Dock 用）
 ├── README.md          # 概要（英語・日本語）
 ├── USER.md            # ユーザ向け説明（英語）
 ├── USER_J.md          # ユーザ向け説明（日本語）
@@ -25,8 +27,10 @@ programs/gpu_monitor/
 ~/.config/gpu_monitor.json   # 設定（「常に手前」の ON/OFF とウィンドウ位置）
 
 install.sh が生成:
-~/.local/share/applications/gpu-monitor.desktop   # アプリメニュー
-~/.config/autostart/gpu-monitor.desktop           # 自動起動（--autostart 時）
+~/.local/share/applications/gpu-monitor.desktop              # アプリメニュー
+~/.local/share/icons/hicolor/scalable/apps/gpu-monitor.svg   # アイコン
+~/.local/share/icons/hicolor/256x256/apps/gpu-monitor.png    # アイコン（PNG）
+~/.config/autostart/gpu-monitor.desktop                      # 自動起動（--autostart 時）
 ```
 
 ---
@@ -41,6 +45,8 @@ install.sh が生成:
 | `QUERY_TIMEOUT_S` | nvidia-smi のタイムアウト (s) | `2` |
 | `CONFIG_FILE` | 設定ファイルパス | `~/.config/gpu_monitor.json` |
 | `NVML_LIB` | NVML の共有ライブラリ名 | `libnvidia-ml.so.1` |
+| `ICON_FILE` | ウィンドウアイコン | `gpu_monitor.py` と同じフォルダの `icon.png` |
+| `WM_CLASS` | X11 の WM_CLASS（install.sh の `StartupWMClass` と対応） | `gpu-monitor` |
 | `BAR_W` / `BAR_H` | 使用率バーの幅 / 高 (px) | `160` / `12` |
 | `PCT_W` | バー右側の % 表示領域の幅 (px)。「100%」が収まる幅 | `34` |
 | `BG` / `CARD_BG` | ウィンドウ背景 / カード背景 | `#1e1e2e` / `#2a2a3c` |
@@ -140,6 +146,8 @@ class App(source, always_on_top=None, reset_position=False)
     メインウィンドウ。
     __init__  always_on_top が None なら設定ファイルの値を採用。
               reset_position でなければ保存位置 (x, y) を覚えておく。
+              tk.Tk(className=WM_CLASS) で作成し、icon.png を iconphoto に設定
+              （無ければ既定のアイコンのまま）。
               ヘッダー・トグルボタン・カード枠・状態行を作成し、refresh() を開始。
     .source       データソース（NvmlSource / SmiSource）
     .top_btn      「常に手前」トグルボタン
@@ -210,6 +218,7 @@ main()
 | 終了時の処理 | `App.close()` |
 | 新規状態の永続 | `load_config`/`save_config` に key 追加 + 使用箇所 |
 | メニュー項目の内容 | `install.sh` の `[Desktop Entry]` |
+| アイコン | `icon.svg` を編集 → `icon.png` を作り直す（下記） |
 
 ### 設計上の注意
 
@@ -234,6 +243,15 @@ main()
   内容が前回と同じなら出さない（`_last_error`）。
 - **シグナル**：SIGINT / SIGTERM のハンドラは `root.after(0, close)` で予約するだけ。
   Tk の操作はメインループから行う。
+- **アイコン**：原本は `icon.svg`。色はアプリと同じ（`BG` / `CARD_BG` / `BAR_BG` / `GOOD` / `WARN` / `BAD` / `DIM`）、
+  バーの長さは 55% / 80% / 95% で、緑・黄・赤の閾値の意味と合わせてある。
+  Tk 8.6 は SVG を読めないので、ウィンドウ用に PNG を作って同梱している。編集したら作り直す:
+  `convert -background none icon.svg PNG32:icon.png`（ImageMagick）
+- **Dock との対応付け**：GNOME はウィンドウの WM_CLASS と .desktop の `StartupWMClass` を照合して
+  Dock のアイコンと名前を決める。Tk は既定で WM_CLASS が `Tk` になり対応付かないため、
+  `className=WM_CLASS` で `gpu-monitor` / `Gpu-monitor` にしている。2 個目に起動したウィンドウは
+  インスタンス名が `gpu-monitor #2` になるが、クラス名 `Gpu-monitor` で一致する。
+  Tk は起動通知を送らないので `StartupNotify=false`（無いと起動後しばらく待ちカーソルになる）。
 - **install.sh と Python のパス**：メニューから起動するとターミナルの PATH（pyenv や conda）が
   効かず、`/usr/bin/python3` に tkinter が無いこともある。そのため install.sh は
   tkinter が使える `python3` の絶対パスを `Exec=` に書き込む。
@@ -258,13 +276,16 @@ nvidia-smi --query-gpu=index,name,temperature.gpu,utilization.gpu,memory.total,m
 # 3) 負荷を掛けてバー・色の反応を確認
 #    (例: ffmpeg / stress-ng / 動画再生)
 
-# 4) 設定の永続確認
+# 4) アイコンと WM_CLASS（Dock に GPU Monitor のアイコンが出ること）
+xprop WM_CLASS     # ウィンドウをクリック → "gpu-monitor", "Gpu-monitor"
+
+# 5) 設定の永続確認
 #    - GUI上で「常に手前」を ON にして終了 → 再起動で ON のまま
 #    - ウィンドウを動かして ✕ / Ctrl+C で終了 → 再起動で同じ位置
 #    - ./gpu_monitor.py -R → 右上に戻る
 #    - ~/.config/gpu_monitor.json の x を 9000 にして起動 → 右上に出る
 
-# 5) 高負荷・エラー時の表示（偽の nvidia-smi を PATH の先頭に置き、--nvidia-smi で起動）
+# 6) 高負荷・エラー時の表示（偽の nvidia-smi を PATH の先頭に置き、--nvidia-smi で起動）
 mkdir -p /tmp/fake_smi && cd /tmp/fake_smi
 printf '#!/bin/sh\necho "0, Fake GPU, 80, 95, 8192, 8192, 230, 230"\n' > nvidia-smi  # 95%/100% の % が読めるか
 # printf '#!/bin/sh\nexit 9\n' > nvidia-smi     # → Error: nvidia-smi failed (exit 9)
@@ -273,9 +294,10 @@ printf '#!/bin/sh\necho "0, Fake GPU, 80, 95, 8192, 8192, 230, 230"\n' > nvidia-
 chmod +x nvidia-smi
 PATH=/tmp/fake_smi:$PATH ~/programs/gpu_monitor/gpu_monitor.py --nvidia-smi
 
-# 6) install.sh（一時ディレクトリに書き出して確認）
+# 7) install.sh（一時ディレクトリに書き出して確認）
 XDG_DATA_HOME=/tmp/xdg/data XDG_CONFIG_HOME=/tmp/xdg/config ./install.sh --autostart
 desktop-file-validate /tmp/xdg/data/applications/gpu-monitor.desktop
+find /tmp/xdg -type f          # .desktop 2 個 + アイコン 2 個
 XDG_DATA_HOME=/tmp/xdg/data XDG_CONFIG_HOME=/tmp/xdg/config ./install.sh --uninstall
 ```
 

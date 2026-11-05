@@ -37,6 +37,10 @@ Features (主な機能):
     (never shrinks).
   - 設定ファイル無くても起動可能（既定値へフォールバック）
     / Works even without a config file (falls back to defaults).
+  - 専用アイコン (icon.png) と WM_CLASS "gpu-monitor"。install.sh で
+    メニューに登録すると Dock でも同じアイコンと名前になる。
+    / Own icon (icon.png) and WM_CLASS "gpu-monitor"; after install.sh
+    the dock shows the same icon and name as the menu entry.
 
 Dependencies (依存関係):
   - Python 3 standard library only (tkinter, ctypes, subprocess,
@@ -94,6 +98,12 @@ REFRESH_MS = 500   # Refresh interval in milliseconds / 更新間隔 (ms)
 QUERY_TIMEOUT_S = 2  # nvidia-smi timeout in seconds / nvidia-smi のタイムアウト (s)
 CONFIG_FILE = Path.home() / ".config" / "gpu_monitor.json"
 NVML_LIB = "libnvidia-ml.so.1"   # NVML shared library / NVML の共有ライブラリ
+ICON_FILE = Path(__file__).resolve().parent / "icon.png"  # Window icon / ウィンドウアイコン
+# X11 WM_CLASS instance name. Must match StartupWMClass in install.sh so
+# the dock shows the menu entry's icon and name.
+# X11 の WM_CLASS。install.sh の StartupWMClass と一致させると、
+# Dock にメニュー項目のアイコンと名前が出る。
+WM_CLASS = "gpu-monitor"
 BAR_W = 160        # Bar width in pixels / バー幅 (px)
 BAR_H = 12         # Bar height in pixels / バー高さ (px)
 PCT_W = 34         # Width of the "100%" text area right of the bar (px)
@@ -516,8 +526,15 @@ class App:
         self.source = source
         self._saved_pos = None if reset_position else (cfg.get("x"),
                                                        cfg.get("y"))
-        self.root = tk.Tk()
+        self.root = tk.Tk(className=WM_CLASS)
         self.root.title("GPU Monitor")
+        # Window / dock icon; keep a reference so it is not garbage-collected
+        # ウィンドウ・Dock のアイコン。GC されないよう参照を保持する
+        try:
+            self._icon = tk.PhotoImage(file=str(ICON_FILE))
+            self.root.iconphoto(True, self._icon)
+        except tk.TclError:
+            pass   # icon.png missing: keep the default icon / 無ければ既定のまま
         self.root.configure(bg=BG)
         self.root.minsize(160, 60)
         # Close button saves the position before quitting

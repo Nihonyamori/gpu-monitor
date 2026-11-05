@@ -58,7 +58,7 @@ cd ~/programs/gpu_monitor
 ./install.sh --autostart   # ログイン時にも自動で起動
 ```
 
-削除するときは `./install.sh --uninstall` です。フォルダを移動したら `./install.sh` をもう一度実行してください。
+削除するとき（メニュー項目・自動起動・アイコン）は `./install.sh --uninstall` です。フォルダを移動したら `./install.sh` をもう一度実行してください。
 
 ### オプション（コマンド）
 
@@ -152,6 +152,7 @@ A. 通常は NVIDIA ドライバのライブラリ（NVML）から直接 GPU 情
 |---|---|
 | プログラム本体 | `~/programs/gpu_monitor/gpu_monitor.py` |
 | メニュー登録 | `~/programs/gpu_monitor/install.sh` |
+| アイコン | `~/programs/gpu_monitor/icon.svg` / `icon.png` |
 | ユーザ用説明（このファイル） | `~/programs/gpu_monitor/USER_J.md` |
 | ユーザ用説明（英語） | `~/programs/gpu_monitor/USER.md` |
 | 開発者用説明 | `~/programs/gpu_monitor/DEVELOPER.md` |

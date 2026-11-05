@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GPU Monitor icon: a GPU chip whose three bars (GPU / MEM / PWR) use the
+     app's green / yellow / red colors at 55% / 80% / 95%. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Background tile (BG) -->
+  <rect x="16" y="16" width="224" height="224" rx="44" fill="#1e1e2e"/>
+  <!-- Chip legs (DIM) -->
+  <g fill="#9a9ab0">
+    <rect x="24" y="74" width="18" height="12" rx="2"/>
+    <rect x="214" y="74" width="18" height="12" rx="2"/>
+    <rect x="24" y="106" width="18" height="12" rx="2"/>
+    <rect x="214" y="106" width="18" height="12" rx="2"/>
+    <rect x="24" y="138" width="18" height="12" rx="2"/>
+    <rect x="214" y="138" width="18" height="12" rx="2"/>
+    <rect x="24" y="170" width="18" height="12" rx="2"/>
+    <rect x="214" y="170" width="18" height="12" rx="2"/>
+  </g>
+  <!-- Chip body (CARD_BG) -->
+  <rect x="40" y="52" width="176" height="152" rx="18" fill="#2a2a3c"/>
+  <!-- Bar tracks (BAR_BG) -->
+  <g fill="#15151f">
+    <rect x="62" y="76" width="132" height="24" rx="7"/>
+    <rect x="62" y="116" width="132" height="24" rx="7"/>
+    <rect x="62" y="156" width="132" height="24" rx="7"/>
+  </g>
+  <!-- Bar fills: GOOD 55%, WARN 80%, BAD 95% -->
+  <rect x="62" y="76" width="73" height="24" rx="7" fill="#4ade80"/>
+  <rect x="62" y="116" width="106" height="24" rx="7" fill="#facc15"/>
+  <rect x="62" y="156" width="125" height="24" rx="7" fill="#f87171"/>
+</svg>

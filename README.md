@@ -1,4 +1,4 @@
-# GPU Monitor / GPU モニタ
+# <img src="icon.svg" width="48" align="top" alt=""> GPU Monitor / GPU モニタ
 
 A tiny Tkinter GUI that shows NVIDIA GPU usage, memory usage, power usage, temperature and memory values in real time. No external Python packages required.
 
@@ -50,9 +50,9 @@ The first launch places the window at the top-right of the screen. After that it
 ### Application menu / autostart
 
 ```bash
-./install.sh               # add "GPU Monitor" to the application menu
+./install.sh               # add "GPU Monitor" (with its icon) to the application menu
 ./install.sh --autostart   # also start it at login
-./install.sh --uninstall   # remove both
+./install.sh --uninstall   # remove the menu entry, autostart and icon
 ```
 
 Run it from a terminal where `python3` has Tkinter; the absolute path of that Python is written into the menu entry. Run it again if you move the folder or change Python.
@@ -69,6 +69,7 @@ The state is automatically saved to `~/.config/gpu_monitor.json` and restored on
 
 * `gpu_monitor.py` – main program
 * `install.sh` – adds the program to the application menu / autostart
+* `icon.svg` / `icon.png` – application icon (menu / window)
 * `README.md` – this file
 * `USER.md` – user guide (English)
 * `USER_J.md` – user guide (Japanese)
@@ -126,9 +127,9 @@ cd ~/programs/gpu_monitor
 ### アプリメニュー・自動起動
 
 ```bash
-./install.sh               # アプリメニューに「GPU Monitor」を登録
+./install.sh               # アプリメニューに「GPU Monitor」をアイコン付きで登録
 ./install.sh --autostart   # ログイン時にも自動起動
-./install.sh --uninstall   # 両方を削除
+./install.sh --uninstall   # メニュー項目・自動起動・アイコンを削除
 ```
 
 `python3` で Tkinter が使えるターミナルから実行してください。その Python の絶対パスがメニュー項目に書き込まれます。フォルダを移動したり Python を変えたりしたら、もう一度実行してください。
@@ -145,6 +146,7 @@ cd ~/programs/gpu_monitor
 
 * `gpu_monitor.py` – 本体
 * `install.sh` – アプリメニュー・自動起動への登録
+* `icon.svg` / `icon.png` – アプリのアイコン（メニュー用 / ウィンドウ用）
 * `README.md` – このファイル
 * `USER.md` – ユーザ向けガイド（英語）
 * `USER_J.md` – ユーザ向けガイド（日本語）

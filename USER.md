@@ -55,7 +55,7 @@ cd ~/programs/gpu_monitor
 ./install.sh --autostart   # also start it automatically at login
 ```
 
-To remove it, run `./install.sh --uninstall`. If you move the folder, run `./install.sh` again.
+To remove it (menu entry, autostart and icon), run `./install.sh --uninstall`. If you move the folder, run `./install.sh` again.
 
 ### Options (Command Line)
 
@@ -140,6 +140,7 @@ If the saved position is off-screen, the window is placed at the top-right inste
 |---|---|
 | Program | `~/programs/gpu_monitor/gpu_monitor.py` |
 | Menu registration | `~/programs/gpu_monitor/install.sh` |
+| Icon | `~/programs/gpu_monitor/icon.svg` / `icon.png` |
 | User Guide (this file) | `~/programs/gpu_monitor/USER.md` |
 | User Guide (Japanese) | `~/programs/gpu_monitor/USER_J.md` |
 | Developer Guide | `~/programs/gpu_monitor/DEVELOPER.md` |
