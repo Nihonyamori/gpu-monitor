@@ -19,8 +19,9 @@ For each GPU, the following items are displayed:
 | **GPU** (bar) | Green → Yellow → Red bar + % | GPU compute load (%) |
 | **MEM** (bar) | Green → Yellow → Red bar + % | Memory utilization (%) |
 | **PWR** (bar) | Green → Yellow → Red bar + % | Power draw vs. Power limit (%) |
-| Detail Line | `7007/8192 MiB  77°C  60/230 W` | Memory used/total (MiB), Temp (°C), Power draw/limit (W) |
-| Bottom Lines | `2 GPUs` / `total memory: 21863 MiB used` | Number of GPUs (1st line) and total memory used (2nd line) |
+| Detail Line | `6.8/8.0 GiB  77°C  60/230 W` | Memory used/total (GiB), Temp (°C), Power draw/limit (W) |
+| History graph | Blue and orange lines | GPU utilization (blue, %) and temperature (orange, °C) over the last 60 seconds, on a 0–100 scale |
+| Bottom Lines | `2 GPUs` / `total memory: 21.4 GiB used` | Number of GPUs (1st line) and total memory used (2nd line) |
 
 ### Color Meaning (Bar colors)
 - 🟢 **Green**: Below 70% (Plenty of headroom)
@@ -28,6 +29,32 @@ For each GPU, the following items are displayed:
 - 🔴 **Red**: 90% or above (Almost full)
 
 > Absolute values for memory, temperature, and power are displayed in the small text line below the bars.
+
+The temperature turns 🟡 **yellow** at 80°C and 🔴 **red** at 90°C.
+
+### Processes using a GPU
+
+Move the mouse over a GPU card to see which processes are using it, next to the window:
+
+```
+    PID  USER             MEM  TYPE COMMAND
+   3369  moni         268 MiB  G    Xorg vt2 -displayfd 3 ...
+```
+
+- `TYPE`: `C` = compute (CUDA etc.), `G` = graphics (desktop, browser), `C+G` = both
+- The list is largest memory first and updates while the mouse stays on the card.
+- Processes of other users or in containers may show `?` if they cannot be seen.
+
+### Right-click menu
+
+Right-click anywhere in the window:
+
+| Item | Meaning |
+|---|---|
+| Always on top | Same as the "Always on top" button |
+| Show history graph (60 s) | Show / hide the graphs (saved for next time) |
+| Move to top-right | Move the window back to the top-right corner |
+| Quit | Close the app (the window position is saved) |
 
 ---
 
@@ -66,6 +93,7 @@ To remove it (menu entry, autostart and icon), run `./install.sh --uninstall`. I
 | `./gpu_monitor.py --no-always-on-top` | Start **without** "Always on top" |
 | `./gpu_monitor.py -R` | Start at the top-right, ignoring the saved position (if the window got lost) |
 | `./gpu_monitor.py --nvidia-smi` | Read GPU data with the `nvidia-smi` command (see FAQ) |
+| `./gpu_monitor.py --new-instance` | Open another window even if one is already running |
 | `./gpu_monitor.py --help` | Show help/options |
 
 ---
@@ -112,6 +140,12 @@ A. These values are for reference. Heat tolerance varies by GPU model. If the te
 A. Please check if your `DISPLAY` environment is correctly set. The program should appear if run from a terminal within a desktop environment.
 If it starts but you cannot see it (e.g. it was closed on a monitor that is now disconnected), start it with `./gpu_monitor.py -R` to bring it back to the top-right.
 
+**Q. I started it again but no new window appeared.**
+A. Only one window runs at a time; starting it again brings the running window to the front. To open another one anyway, use `./gpu_monitor.py --new-instance`.
+
+**Q. The process list shows only some processes / no graphics processes.**
+A. With `--nvidia-smi` (or when NVML is unavailable) only compute processes can be listed. Processes in containers or hidden by the system show `?`.
+
 **Q. What is `--nvidia-smi` for?**
 A. Normally the program reads the GPU data directly from the NVIDIA driver library (NVML), which is light and fast. If that library cannot be loaded, it automatically uses the `nvidia-smi` command instead. `--nvidia-smi` forces the latter; you normally do not need it.
 
@@ -122,10 +156,11 @@ A. Normally the program reads the GPU data directly from the NVIDIA driver libra
 Saved in `~/.config/gpu_monitor.json`:
 
 ```json
-{ "always_on_top": true, "x": 2932, "y": 20 }
+{ "always_on_top": true, "show_graph": true, "x": 2932, "y": 20 }
 ```
 
 - `always_on_top`: `true` = Always on top ON (displayed at the very front), `false` = OFF (normal window)
+- `show_graph`: `true` = show the history graphs (default), `false` = hide them
 - `x`, `y`: Window position (pixels from the top-left of the screen), saved when the app is closed
 
 To change this manually, edit the file while the app is closed, then restart `./gpu_monitor.py`.

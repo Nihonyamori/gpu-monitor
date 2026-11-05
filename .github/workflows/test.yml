@@ -1,0 +1,17 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    # No GPU here: nvidia-smi is faked and the GUI runs on a virtual display.
+    # GPU 無し: nvidia-smi は偽物、GUI は仮想ディスプレイ (xvfb) で動かす。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Tkinter and Xvfb
+        run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb
+      - name: Run tests
+        run: xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
