@@ -1,5 +1,7 @@
 # <img src="icon.svg" width="48" align="top" alt=""> GPU Monitor / GPU モニタ
 
+[![test](https://github.com/Nihonyamori/gpu-monitor/actions/workflows/test.yml/badge.svg)](https://github.com/Nihonyamori/gpu-monitor/actions/workflows/test.yml)
+
 A tiny Tkinter GUI that shows NVIDIA GPU usage, memory usage, power usage, temperature and memory values in real time. No external Python packages required.
 
 NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモリ絶対値をリアルタイムで小さく表示する Tkinter GUI です。外部 Python パッケージは不要です。
@@ -23,7 +25,8 @@ NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモ
 * Color coding: <70% green, 70-89% yellow, ≥90% red; temperature yellow from 80°C, red from 90°C
 * Hover over a card to see the processes using that GPU (PID, user, memory, command)
 * Cards are rebuilt automatically when GPUs are added or removed
-* "Always on top" toggle button; right-click menu for always-on-top, the history graph, moving to the top-right and quitting
+* "Always on top" toggle button
+* Menu (the "⋮" button or right-click): always on top, compact view (one line per GPU), history graph, window opacity, move to the top-right, quit
 * Single instance: launching it again brings the running window to the front
 * Remembers the window position; the first launch places it at the top-right
 * Settings are persisted to `~/.config/gpu_monitor.json`
@@ -47,6 +50,7 @@ cd ~/programs/gpu_monitor
 ./gpu_monitor.py -R                  # start at the top-right, ignoring the saved position
 ./gpu_monitor.py --nvidia-smi        # use nvidia-smi instead of NVML
 ./gpu_monitor.py --new-instance      # open another window even if one is running
+./gpu_monitor.py --version           # show the version
 ./gpu_monitor.py --help
 ```
 
@@ -76,6 +80,7 @@ The state is automatically saved to `~/.config/gpu_monitor.json` and restored on
 * `install.sh` – adds the program to the application menu / autostart
 * `icon.svg` / `icon.png` – application icon (menu / window)
 * `tests/` – unit tests (`python3 -m unittest discover -s tests`); run on GitHub Actions without a GPU
+* `CHANGELOG.md` – changes per version
 * `README.md` – this file
 * `USER.md` – user guide (English)
 * `USER_J.md` – user guide (Japanese)
@@ -106,7 +111,8 @@ MIT. See [LICENSE](LICENSE).
 * 色分け：70% 未満 緑、70〜89% 黄、90% 以上 赤。温度は 80°C 以上で黄、90°C 以上で赤
 * カードにマウスを乗せると、その GPU を使っているプロセス（PID・ユーザ・メモリ・コマンド）を表示
 * GPU が増減したらカードを自動で作り直す
-* 「Always on top」トグルボタン。右クリックメニューで常時手前・グラフ表示・右上へ移動・終了
+* 「Always on top」トグルボタン
+* メニュー（「⋮」ボタンか右クリック）：常時手前・コンパクト表示（1 GPU 1 行）・グラフ表示・不透明度・右上へ移動・終了
 * 二重起動しない（もう一度起動すると、起動中のウィンドウが手前に出る）
 * ウィンドウ位置を記憶（初回は画面右上に配置）
 * 設定は `~/.config/gpu_monitor.json` に永続保存
@@ -130,6 +136,7 @@ cd ~/programs/gpu_monitor
 ./gpu_monitor.py -R                  # 保存位置を無視して右上に表示
 ./gpu_monitor.py --nvidia-smi        # NVML の代わりに nvidia-smi を使う
 ./gpu_monitor.py --new-instance      # 起動中でも別のウィンドウを開く
+./gpu_monitor.py --version           # バージョンを表示
 ./gpu_monitor.py --help              # ヘルプ
 ```
 
@@ -159,6 +166,7 @@ cd ~/programs/gpu_monitor
 * `install.sh` – アプリメニュー・自動起動への登録
 * `icon.svg` / `icon.png` – アプリのアイコン（メニュー用 / ウィンドウ用）
 * `tests/` – テスト（`python3 -m unittest discover -s tests`）。GitHub Actions で GPU なしに実行
+* `CHANGELOG.md` – バージョンごとの変更履歴
 * `README.md` – このファイル
 * `USER.md` – ユーザ向けガイド（英語）
 * `USER_J.md` – ユーザ向けガイド（日本語）

@@ -322,6 +322,73 @@ class TestApp(TempDirTest):
         app.tooltip.hide()
         self.assertIsNone(app.tooltip.win)
 
+    def test_compact_view(self):
+        app = self.make_app([gpu(0, temp=92, util=75), gpu(1)])
+        app.compact_var.set(True)
+        app._toggle_compact()
+        app.root.update()
+        self.assertTrue(all(isinstance(c, gm.CompactRow) for c in app.cards))
+        row = app.cards[0]
+        self.assertEqual(row.pct_lbls["util"].cget("text"), "75%")
+        self.assertEqual(row.pct_lbls["util"].cget("fg"), gm.WARN)
+        self.assertEqual(row.temp_lbl.cget("fg"), gm.BAD)
+        self.assertFalse(app.mem_status.winfo_ismapped())
+        self.assertEqual(app.menu.entrycget(gm.GRAPH_MENU_LABEL, "state"),
+                         "disabled")
+        self.assertEqual(gm.load_config()["compact"], True)
+        # Rows survive refreshes and are smaller than cards / 更新後も維持
+        app.refresh()
+        self.assertIsInstance(app.cards[0], gm.CompactRow)
+        compact_h = app.root.winfo_reqheight()
+        app.compact_var.set(False)
+        app._toggle_compact()
+        app.root.update()
+        self.assertIsInstance(app.cards[0], gm.GpuCard)
+        self.assertGreater(app.root.winfo_reqheight(), compact_h)
+        self.assertEqual(app.menu.entrycget(gm.GRAPH_MENU_LABEL, "state"),
+                         "normal")
+
+    def test_compact_view_restored_from_config(self):
+        gm.update_config(compact=True, opacity=80)
+        app = self.make_app([gpu(0)])
+        self.assertIsInstance(app.cards[0], gm.CompactRow)
+        self.assertEqual(app.opacity_var.get(), 80)
+
+    def test_opacity(self):
+        app = self.make_app([gpu(0)])
+        self.assertAlmostEqual(float(app.root.wm_attributes("-alpha")), 1.0)
+        app.opacity_var.set(70)
+        app._set_opacity()
+        self.assertAlmostEqual(float(app.root.wm_attributes("-alpha")), 0.7,
+                               places=2)
+        self.assertEqual(gm.load_config()["opacity"], 70)
+
+    def test_invalid_opacity_in_config(self):
+        gm.update_config(opacity=5)
+        app = self.make_app([gpu(0)])
+        self.assertEqual(app.opacity_var.get(), 100)
+
+    def test_menu_button_and_version_entry(self):
+        app = self.make_app([gpu(0)])
+        self.assertEqual(app.menu_btn.cget("text"), "⋮")
+        last = app.menu.index("end")
+        self.assertEqual(app.menu.entrycget(last, "label"),
+                         f"GPU Monitor {gm.__version__}")
+
+
+class TestVersion(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parent.parent
+
+    def test_version_option(self):
+        out = subprocess.run(
+            [sys.executable, str(self.ROOT / "gpu_monitor.py"), "--version"],
+            capture_output=True, text=True, check=True).stdout
+        self.assertEqual(out.strip(), f"gpu_monitor.py {gm.__version__}")
+
+    def test_changelog_has_current_version(self):
+        changelog = (self.ROOT / "CHANGELOG.md").read_text()
+        self.assertIn(f"## [{gm.__version__}]", changelog)
+
 
 if __name__ == "__main__":
     unittest.main()

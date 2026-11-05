@@ -33,12 +33,17 @@ Features (主な機能):
     (toggled from the right-click menu)
   - カードにマウスを乗せると、その GPU を使っているプロセスを表示
     / Hovering over a card lists the processes using that GPU.
-  - 「Always on top」トグル、グラフ表示、ウィンドウ位置を
+  - メニュー（「⋮」ボタンか右クリック）: 常に手前・コンパクト表示
+    （1 GPU 1 行）・グラフ・不透明度・右上へ移動・終了・バージョン
+    / Menu ("⋮" button or right-click): always on top, compact view
+    (one line per GPU), graph, opacity, move to top-right, quit, version
+  - 設定（常に手前・グラフ・コンパクト表示・不透明度・ウィンドウ位置）を
     ~/.config/gpu_monitor.json に保存し、次回起動時に復元する。
     初回は画面右上に配置。
-    / "Always on top", the graph setting and the window position are
-    persisted to ~/.config/gpu_monitor.json and restored on the next
-    launch. The first launch places the window at the top-right.
+    / Settings (always on top, graph, compact view, opacity, window
+    position) are persisted to ~/.config/gpu_monitor.json and restored
+    on the next launch. The first launch places the window at the
+    top-right.
   - 二重起動しない（2 つ目は既存のウィンドウを手前に出して終了）
     / Single instance: a second launch brings the existing window to
     the front and exits.
@@ -71,6 +76,7 @@ Usage (使い方):
                                   / NVML の代わりに nvidia-smi を使う
   ./gpu_monitor.py --new-instance Open another window even if one is
                                   already running / 起動中でも別に開く
+  ./gpu_monitor.py --version      Show the version / バージョン表示
   ./gpu_monitor.py --help         Show help / ヘルプ表示
 
 Design notes (設計上のポイント):
@@ -111,6 +117,8 @@ from pathlib import Path
 
 import tkinter as tk
 
+__version__ = "1.0.0"   # Keep in sync with CHANGELOG.md / CHANGELOG.md と揃える
+
 REFRESH_MS = 500   # Refresh interval in milliseconds / 更新間隔 (ms)
 QUERY_TIMEOUT_S = 2  # nvidia-smi timeout in seconds / nvidia-smi のタイムアウト (s)
 CONFIG_FILE = Path.home() / ".config" / "gpu_monitor.json"
@@ -131,6 +139,8 @@ GRAPH_H = 44       # History graph height (px) / 履歴グラフの高さ (px)
 LEGEND_H = 12      # Legend strip at the top of the graph (px) / 凡例の帯
 GRAPH_POINTS = 120   # Samples in the graph (120 x 0.5 s = 60 s) / グラフの点数
 PROC_LIMIT = 15    # Max processes listed in the tooltip / ツールチップの最大行数
+GRAPH_MENU_LABEL = "Show history graph (60 s)"
+OPACITY_LEVELS = (100, 90, 80, 70, 60)   # Window opacity choices (%) / 不透明度の選択肢
 
 # --- Colors (色) -------------------------------------------
 BG = "#1e1e2e"       # Window background / ウィンドウ背景
@@ -801,12 +811,22 @@ class HistoryGraph:
                       font=font)
 
 
+def pointer_inside(widget):
+    """True if the mouse pointer is inside widget.
+    / マウスポインタが widget の中にあれば True。"""
+    px, py = widget.winfo_pointerxy()
+    x, y = widget.winfo_rootx(), widget.winfo_rooty()
+    return (x <= px < x + widget.winfo_width()
+            and y <= py < y + widget.winfo_height())
+
+
 class GpuCard:
     """A card that displays the information of a single GPU.
     / GPU 1枚分の情報を表示するカード。"""
 
     def __init__(self, parent, idx, name, show_graph=True):
         self.index = idx
+        self.name = name
         self.frame = tk.Frame(parent, bg=CARD_BG)
         self.frame.grid(padx=6, pady=3)
         self.frame.columnconfigure(1, weight=1)
@@ -855,13 +875,50 @@ class GpuCard:
             text=f"{g['power']:.0f}/{g['power_limit']:.0f} W")
         self.graph.add(g["util"], g["temp"])
 
-    def contains_pointer(self):
-        """True if the mouse pointer is inside this card.
-        / マウスポインタがこのカードの中にあれば True。"""
-        f = self.frame
-        px, py = f.winfo_pointerxy()
-        x, y = f.winfo_rootx(), f.winfo_rooty()
-        return x <= px < x + f.winfo_width() and y <= py < y + f.winfo_height()
+    def set_graph_visible(self, on):
+        self.graph.set_visible(on)
+
+
+class CompactRow:
+    """One-line view of a GPU for compact mode:
+    "GPU 0  G 12%  M 9%  P 9%  51°C" (GPU / memory / power %, temperature).
+    Same interface as GpuCard (index, name, frame, update,
+    set_graph_visible).
+    / コンパクト表示の 1 行: "GPU 0  G 12%  M 9%  P 9%  51°C"（GPU・
+      メモリ・電力の %、温度）。GpuCard と同じインタフェース。
+    """
+
+    def __init__(self, parent, idx, name):
+        self.index = idx
+        self.name = name
+        self.frame = tk.Frame(parent, bg=CARD_BG)
+        self.frame.grid(padx=6, pady=2, sticky="ew")
+        font = ("Helvetica", 10)
+        bold = ("Helvetica", 10, "bold")
+        tk.Label(self.frame, text=f"GPU {idx}", bg=CARD_BG, fg=FG,
+                 font=bold).pack(side="left", padx=(6, 6), pady=3)
+        self.pct_lbls = {}
+        for key, short in (("util", "G"), ("mem_pct", "M"),
+                           ("power_pct", "P")):
+            tk.Label(self.frame, text=short, bg=CARD_BG, fg=DIM,
+                     font=font).pack(side="left")
+            lbl = tk.Label(self.frame, text="--%", width=4, anchor="e",
+                           bg=CARD_BG, fg=FG, font=bold)
+            lbl.pack(side="left", padx=(0, 6))
+            self.pct_lbls[key] = lbl
+        self.temp_lbl = tk.Label(self.frame, text="--°C", width=5, anchor="e",
+                                 bg=CARD_BG, fg=DIM, font=font)
+        self.temp_lbl.pack(side="left", padx=(0, 6))
+
+    def update(self, g):
+        for key, lbl in self.pct_lbls.items():
+            pct = max(0.0, min(100.0, g[key]))
+            lbl.config(text=f"{pct:.0f}%", fg=color_for_pct(pct))
+        self.temp_lbl.config(text=f"{g['temp']:.0f}°C",
+                             fg=color_for_temp(g["temp"]))
+
+    def set_graph_visible(self, on):
+        pass   # no graph in compact mode / コンパクト表示にグラフは無い
 
 
 class Tooltip:
@@ -957,10 +1014,16 @@ class App:
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.topmost_var = tk.BooleanVar(value=bool(always_on_top))
         self.graph_var = tk.BooleanVar(value=bool(cfg.get("show_graph", True)))
+        self.compact_var = tk.BooleanVar(value=bool(cfg.get("compact", False)))
+        opacity = cfg.get("opacity", 100)
+        self.opacity_var = tk.IntVar(
+            value=opacity if opacity in OPACITY_LEVELS else 100)
+        self.root.wm_attributes("-alpha", self.opacity_var.get() / 100)
 
         # --- Header: title + Always-on-top button / ヘッダー ---
         header = tk.Frame(self.root, bg=BG)
         header.grid(row=0, column=0, sticky="ew")
+        header.columnconfigure(0, weight=1)
         tk.Label(header, text="GPU Monitor", bg=BG, fg=FG,
                  font=("Helvetica", 12, "bold")).grid(
             row=0, column=0, sticky="w", padx=10, pady=(8, 0))
@@ -969,7 +1032,17 @@ class App:
             activebackground=GOOD, activeforeground=BG,
             relief="flat", bd=0, padx=8, pady=2, cursor="hand2",
             command=lambda: self._save_topmost(not self.topmost))
-        self.top_btn.grid(row=0, column=1, sticky="e", padx=10, pady=(8, 0))
+        self.top_btn.grid(row=0, column=1, sticky="e", padx=(10, 2),
+                          pady=(8, 0))
+        # "⋮" opens the same menu as a right-click
+        # 「⋮」で右クリックと同じメニューを開く
+        self.menu_btn = tk.Button(
+            header, text="⋮", bg=BG, fg=DIM, activebackground=CARD_BG,
+            activeforeground=FG, relief="flat", bd=0, padx=6, pady=0,
+            cursor="hand2", font=("Helvetica", 12, "bold"),
+            command=self._popup_menu_at_button)
+        self.menu_btn.grid(row=0, column=2, sticky="e", padx=(0, 4),
+                           pady=(8, 0))
         self.set_topmost(always_on_top)
 
         # Container for all GPU cards / GPU カードのコンテナ
@@ -992,12 +1065,26 @@ class App:
             label="Always on top", variable=self.topmost_var,
             command=lambda: self._save_topmost(self.topmost_var.get()))
         self.menu.add_checkbutton(
-            label="Show history graph (60 s)", variable=self.graph_var,
+            label="Compact view", variable=self.compact_var,
+            command=self._toggle_compact)
+        self.menu.add_checkbutton(
+            label=GRAPH_MENU_LABEL, variable=self.graph_var,
             command=self._toggle_graph)
+        opacity_menu = tk.Menu(self.menu, tearoff=0, bg=CARD_BG, fg=FG,
+                               activebackground=BAR_BG, activeforeground=FG,
+                               selectcolor=GOOD, bd=0)
+        for level in OPACITY_LEVELS:
+            opacity_menu.add_radiobutton(
+                label=f"{level}%", value=level, variable=self.opacity_var,
+                command=self._set_opacity)
+        self.menu.add_cascade(label="Opacity", menu=opacity_menu)
         self.menu.add_separator()
         self.menu.add_command(label="Move to top-right",
                               command=self._move_top_right)
         self.menu.add_command(label="Quit", command=self.close)
+        self.menu.add_separator()
+        self.menu.add_command(label=f"GPU Monitor {__version__}",
+                              state="disabled")
         self.root.bind("<Button-3>", self._popup_menu)
 
         self.tooltip = Tooltip(self.root)
@@ -1008,6 +1095,8 @@ class App:
         self._closed = False   # close() done? / 終了処理済みか
         self._last_error = None   # Last error printed to stderr / 直近のエラー
         self._after_id = None   # Next refresh() timer / 次の refresh の予約
+        self._last_gpus = []   # Latest query() result / 直近の取得結果
+        self._apply_compact_layout()
         self.refresh()
 
     # --- Settings / 設定 -------------------------------------------
@@ -1036,14 +1125,55 @@ class App:
         / メニューから: 履歴グラフの表示を切り替えて保存する。"""
         on = self.graph_var.get()
         for card in self.cards:
-            card.graph.set_visible(on)
+            card.set_graph_visible(on)
         update_config(show_graph=on)
         self.root.update_idletasks()
         self._fit()
 
+    def _toggle_compact(self):
+        """Menu handler: switch between cards and one-line rows, and
+        persist it. The width may shrink once after switching.
+        / メニューから: カードと 1 行表示を切り替えて保存する。切替直後は
+          幅が縮むのを許す。"""
+        update_config(compact=self.compact_var.get())
+        self._apply_compact_layout()
+        self._rebuild_cards(self._last_gpus)
+        for card, g in zip(self.cards, self._last_gpus):
+            card.update(g)
+        self._max_req = 0
+        self.root.update_idletasks()
+        self._fit()
+
+    def _apply_compact_layout(self):
+        """Compact mode hides the total-memory line and disables the
+        graph menu item. / コンパクト表示ではメモリ合計の行を隠し、
+        グラフのメニュー項目を無効にする。"""
+        compact = self.compact_var.get()
+        if compact:
+            self.mem_status.grid_remove()
+        else:
+            self.mem_status.grid()
+        self.menu.entryconfigure(GRAPH_MENU_LABEL,
+                                 state="disabled" if compact else "normal")
+
+    def _set_opacity(self):
+        """Menu handler: apply and persist the window opacity.
+        / メニューから: ウィンドウの不透明度を反映して保存する。"""
+        level = self.opacity_var.get()
+        self.root.wm_attributes("-alpha", level / 100)
+        update_config(opacity=level)
+
     def _popup_menu(self, event):
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.menu.grab_release()
+
+    def _popup_menu_at_button(self):
+        b = self.menu_btn
+        try:
+            self.menu.tk_popup(b.winfo_rootx(),
+                               b.winfo_rooty() + b.winfo_height())
         finally:
             self.menu.grab_release()
 
@@ -1118,7 +1248,7 @@ class App:
         # 子ウィジェットに移っただけでも <Leave> が来るので、少し後に
         # 位置を確かめる。
         def check():
-            if self.tooltip.owner is card and not card.contains_pointer():
+            if self.tooltip.owner is card and not pointer_inside(card.frame):
                 self.tooltip.hide()
         self.root.after(80, check)
 
@@ -1128,7 +1258,8 @@ class App:
         except Exception as e:
             text = f"Error: {short_error(e)}"
         self.tooltip.show(card, card.frame,
-                          f"Processes on GPU {card.index}\n\n{text}")
+                          f"Processes on GPU {card.index} ({card.name})"
+                          f"\n\n{text}")
 
     # --- Cards / カード ---------------------------------------------
     def _rebuild_cards(self, gpus):
@@ -1141,8 +1272,11 @@ class App:
             card.frame.destroy()
         self.cards = []
         for g in gpus:
-            card = GpuCard(self.cards_frame, g["index"], g["name"],
-                           show_graph=self.graph_var.get())
+            if self.compact_var.get():
+                card = CompactRow(self.cards_frame, g["index"], g["name"])
+            else:
+                card = GpuCard(self.cards_frame, g["index"], g["name"],
+                               show_graph=self.graph_var.get())
             card.frame.bind("<Enter>",
                             lambda e, c=card: self._on_card_enter(c))
             card.frame.bind("<Leave>",
@@ -1189,6 +1323,12 @@ class App:
         """
         if self._closed:
             return
+        # Called directly (not by the timer): drop the pending tick so only
+        # one refresh loop runs. / タイマー以外から呼ばれた時は予約を消し、
+        # 更新ループが 1 本だけになるようにする。
+        if self._after_id is not None:
+            self.root.after_cancel(self._after_id)
+            self._after_id = None
         try:
             gpus = self.source.query()
         except Exception as e:
@@ -1202,6 +1342,7 @@ class App:
             self._after_id = self.root.after(REFRESH_MS, self.refresh)
             return
         self._last_error = None
+        self._last_gpus = gpus
 
         if [(g["index"], g["name"]) for g in gpus] != self._card_keys:
             self._rebuild_cards(gpus)
@@ -1242,6 +1383,8 @@ def main():
     """
     p = argparse.ArgumentParser(
         description="NVIDIA GPU usage monitor (small GUI)")
+    p.add_argument("--version", action="version",
+                   version=f"%(prog)s {__version__}")
     p.add_argument("--always-on-top", "-A", dest="always_on_top",
                    action="store_const", const=True, default=None,
                    help="start with always-on-top "

@@ -48,16 +48,19 @@ GPU のカードにマウスを乗せると、その GPU を使っているプ�
 - メモリの大きい順に並び、マウスを乗せている間は更新されます。
 - 他のユーザやコンテナ内のプロセスで、中身が見えないものは `?` になります。
 
-### 右クリックメニュー
+### メニュー
 
-ウィンドウ内で右クリックすると出ます。
+ウィンドウ右上の **⋮** ボタンを押すか、ウィンドウ内で右クリックすると出ます。設定は次回も引き継ぎます。
 
 | 項目 | 意味 |
 |---|---|
 | Always on top | 「Always on top」ボタンと同じ |
-| Show history graph (60 s) | グラフの表示・非表示（次回も引き継ぐ） |
+| Compact view | 1 GPU を 1 行で表示：`GPU 0  G 17%  M 9%  P 8%  48°C`（G = GPU、M = メモリ、P = 電力）。グラフとメモリ合計の行は隠れる。マウスを乗せるとプロセス一覧は出る |
+| Show history graph (60 s) | グラフの表示・非表示（コンパクト表示中は選べない） |
+| Opacity | ウィンドウを半透明にする：100% / 90% / 80% / 70% / 60% |
 | Move to top-right | ウィンドウを右上に戻す |
 | Quit | 終了（ウィンドウ位置は保存される） |
+| GPU Monitor 1.0.0 | バージョン（押せない） |
 
 ---
 
@@ -97,6 +100,7 @@ cd ~/programs/gpu_monitor
 | `./gpu_monitor.py -R` | 保存位置を無視して右上に表示する（ウィンドウが見当たらないとき） |
 | `./gpu_monitor.py --nvidia-smi` | `nvidia-smi` コマンドで GPU 情報を取る（FAQ 参照） |
 | `./gpu_monitor.py --new-instance` | 起動中でも別のウィンドウを開く |
+| `./gpu_monitor.py --version` | バージョンを表示 |
 | `./gpu_monitor.py --help` | オプション一覧を表示 |
 
 ---
@@ -169,11 +173,13 @@ A. 通常は NVIDIA ドライバのライブラリ（NVML）から直接 GPU 情
 `~/.config/gpu_monitor.json` に保存します。
 
 ```json
-{ "always_on_top": true, "show_graph": true, "x": 2932, "y": 20 }
+{ "always_on_top": true, "show_graph": true, "compact": false, "opacity": 100, "x": 2932, "y": 20 }
 ```
 
 - `always_on_top`: `true` = 常時手前 ON（画面の一番手前に表示）、`false` = OFF（普通のウィンドウ）
 - `show_graph`: `true` = 履歴グラフを表示（既定）、`false` = 非表示
+- `compact`: `true` = コンパクト表示、`false` = カード表示（既定）
+- `opacity`: `100`・`90`・`80`・`70`・`60`（%）。それ以外の値は 100 として扱う
 - `x`, `y`: ウィンドウの位置（画面左上からのピクセル数）。終了時に保存
 
 手動で変更したい場合は、プログラムを閉じた状態でこのファイルを編集し、

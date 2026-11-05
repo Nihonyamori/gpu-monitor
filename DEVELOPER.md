@@ -22,6 +22,7 @@ programs/gpu_monitor/
 ├── DEVELOPER.md       # このファイル（開発者向け）
 ├── gpu_monitor.png    # README 用スクリーンショット
 ├── LICENSE            # MIT License
+├── CHANGELOG.md       # 変更履歴（__version__ と揃える）
 ├── .gitignore         # __pycache__ を除外
 ├── tests/
 │   └── test_gpu_monitor.py   # unittest（GPU 不要）
@@ -29,7 +30,7 @@ programs/gpu_monitor/
     └── test.yml       # GitHub Actions で tests を実行
 
 実行時に自動生成:
-~/.config/gpu_monitor.json            # 設定（常に手前・グラフ表示・ウィンドウ位置）
+~/.config/gpu_monitor.json            # 設定（常に手前・グラフ・コンパクト表示・不透明度・ウィンドウ位置）
 $XDG_RUNTIME_DIR/gpu-monitor-<uid>-<DISPLAY>.lock / .sock   # 二重起動防止
 
 install.sh が生成:
@@ -47,6 +48,7 @@ install.sh が生成:
 
 | 定数 | 意味 | 既定値 |
 |---|---|---|
+| `__version__` | バージョン（`--version`・メニュー最下段・CHANGELOG.md） | `1.0.0` |
 | `REFRESH_MS` | 更新間隔 (ms) | `500` |
 | `QUERY_TIMEOUT_S` | nvidia-smi のタイムアウト (s) | `2` |
 | `CONFIG_FILE` | 設定ファイルパス | `~/.config/gpu_monitor.json` |
@@ -59,6 +61,8 @@ install.sh が生成:
 | `GRAPH_H` / `LEGEND_H` | 履歴グラフの高さ / 上部の凡例帯の高さ (px) | `44` / `12` |
 | `GRAPH_POINTS` | グラフの点数（× `REFRESH_MS` = 表示期間） | `120`（60 秒） |
 | `PROC_LIMIT` | プロセス一覧の最大行数 | `15` |
+| `GRAPH_MENU_LABEL` | グラフのメニュー項目名（有効・無効の切替に使う） | `Show history graph (60 s)` |
+| `OPACITY_LEVELS` | 不透明度の選択肢 (%) | `(100, 90, 80, 70, 60)` |
 | `BG` / `CARD_BG` | ウィンドウ背景 / カード背景 | `#1e1e2e` / `#2a2a3c` |
 | `FG` / `DIM` | 前景テキスト / 薄めテキスト | `#e6e6f0` / `#9a9ab0` |
 | `GOOD` / `WARN` / `BAD` | 低負荷 / 中負荷 / 高負荷の色 | 緑 / 黄 / 赤 |
@@ -76,7 +80,8 @@ load_config() -> dict
 
 save_config(cfg: dict)
     同上ファイルへ JSON 書き込み。失敗しても例外を投げない（静かに無視）。
-    key: "always_on_top" (bool), "show_graph" (bool), "x" / "y" (int, ウィンドウ位置)
+    key: "always_on_top" (bool), "show_graph" (bool), "compact" (bool),
+         "opacity" (int, OPACITY_LEVELS のどれか), "x" / "y" (int, ウィンドウ位置)
 
 update_config(**values)
     load_config() → 値を書き足し → save_config()。設定の保存は全部これを使う。
@@ -191,7 +196,7 @@ class HistoryGraph(parent, row)
 
 class GpuCard(parent, idx, name, show_graph=True)
     1GPU分のカード(Frame)。タイトルは "GPU <index>  <name>"。
-    .index     GPU 番号（プロセス一覧の取得に使う）
+    .index / .name   GPU 番号と名前（プロセス一覧の取得・見出しに使う）
     .util_bar  BarWidget (GPU使用率)
     .mem_bar   BarWidget (メモリ使用率)
     .pwr_bar   BarWidget (消費電力率)
@@ -199,7 +204,15 @@ class GpuCard(parent, idx, name, show_graph=True)
                詳細行。温度だけ色を変えるため 3 つのラベルに分けている
     .graph     HistoryGraph
     .update(g) make_gpu() の dict 1件を受け取って全項目を反映
-    .contains_pointer()  マウスがカード内にあるか
+    .set_graph_visible(on)
+
+pointer_inside(widget) -> bool
+    マウスポインタが widget の中にあるか（プロセス一覧を隠すかの判定）。
+
+class CompactRow(parent, idx, name)
+    コンパクト表示の 1 行 "GPU 0  G 17%  M 9%  P 8%  48°C"。GpuCard と同じ
+    インタフェース（index / name / frame / update(g) / set_graph_visible は何もしない）
+    なので、App は表示モードを気にせず扱える。
 
 class Tooltip(root)
     枠なし (overrideredirect) の Toplevel。widget の左に出し、入らなければ右。
@@ -214,13 +227,20 @@ class App(source, always_on_top=None, reset_position=False)
               ヘッダー・トグルボタン・カード枠・状態行を作成し、refresh() を開始。
     .source       データソース（NvmlSource / SmiSource）
     .top_btn      「常に手前」トグルボタン
-    .topmost_var / .graph_var   右クリックメニューのチェックと同期する BooleanVar
-    .menu         右クリックメニュー（常に手前 / グラフ / 右上へ移動 / 終了）
+    .topmost_var / .graph_var / .compact_var / .opacity_var
+                  メニューのチェック・選択と同期する変数
+    .menu         メニュー（常に手前 / コンパクト表示 / グラフ / 不透明度 /
+                  右上へ移動 / 終了 / バージョン）。右クリックと .menu_btn（⋮）で開く
     .tooltip      Tooltip（プロセス一覧）
     .cards        GpuCard のリスト。._card_keys = [(index, name)]
     .set_topmost(on)    属性・ボタンの色・メニューのチェックを揃える
     ._save_topmost(on)  ボタン・メニューから。set_topmost + 保存
     ._toggle_graph()    全カードのグラフ表示を切替 + 保存 + _fit()
+    ._toggle_compact()  保存 → _apply_compact_layout() → カードを作り直して直近の
+                        値（_last_gpus）を表示 → 幅が縮めるよう _max_req = 0 → _fit()
+    ._apply_compact_layout()  コンパクト時はメモリ合計の行を隠し、グラフの
+                        メニュー項目を無効にする
+    ._set_opacity()     wm_attributes("-alpha") + 保存
     .bring_to_front()   2 つ目の起動時に呼ばれる。deiconify / lift と、
                         一時的な topmost で確実に前面へ
     ._place_once()      初回の refresh で 1 回だけ choose_position() の位置に
@@ -236,13 +256,14 @@ class App(source, always_on_top=None, reset_position=False)
     .close()            位置を保存 → 予約中の refresh を取り消し → ツールチップを
                         閉じる → source.close() → root.destroy()。閉じるボタン・
                         メニュー・SIGINT / SIGTERM から呼ばれる（2 回目以降は無視）
-    .refresh()          500ms ごとに source.query() → GPU 構成が変わっていれば
+    .refresh()          直接呼ばれた時は予約中のタイマーを取り消す（ループは常に 1 本）。
+                        500ms ごとに source.query() → GPU 構成が変わっていれば
                         _rebuild_cards() → 全カード更新 → 表示中のプロセス一覧も更新 →
                         self.root.after(REFRESH_MS, ...) で再帰スケジュール
 
 main()
     argparse で CLI をパース（-A / --no-always-on-top / -R / --nvidia-smi /
-    --new-instance）。--new-instance でなければ SingleInstance.acquire() し、
+    --new-instance / --version）。--new-instance でなければ SingleInstance.acquire() し、
     2 つ目ならそのまま終了。open_source() でソースを選び App を作成、
     SingleInstance を attach、SIGINT / SIGTERM で close() を予約するハンドラを
     登録してから mainloop()。終了時に SingleInstance.close()。
@@ -271,7 +292,8 @@ main()
 - 保存されるのは「常に手前」の ON/OFF、グラフ表示、ウィンドウ位置。
   → `~/.config/gpu_monitor.json`（例: `{"always_on_top": true, "show_graph": true, "x": 2932, "y": 20}`）
   - `always_on_top` はボタン・メニューで切り替えたときに保存。`-A` / `--no-always-on-top` は保存しない。
-  - `show_graph` はメニューで切り替えたときに保存（既定 true）。
+  - `show_graph` / `compact` / `opacity` はメニューで切り替えたときに保存。
+    既定は true / false / 100。`opacity` が `OPACITY_LEVELS` に無ければ 100。
   - `x` / `y` は終了時（`close()`）に `wm geometry` の値から保存。同じ値を
     `geometry()` に渡すと同じ場所に開くので、起動を繰り返しても位置はずれない。
 - ウィンドウサイズ・色テーマ等は**未保存**（毎回初期値）。
@@ -294,7 +316,10 @@ main()
 | メモリの表示形式 | `fmt_mib()` / `fmt_mem_pair()` |
 | グラフの期間・高さ・線 | `GRAPH_POINTS` / `GRAPH_H` / `HistoryGraph.draw()` |
 | プロセス一覧の列・行数 | `format_processes()` / `PROC_LIMIT`、取得は各ソースの `processes()` |
-| 右クリックメニューの項目 | `App.__init__` の `self.menu` |
+| メニューの項目 | `App.__init__` の `self.menu`（「⋮」ボタンは `self.menu_btn`） |
+| コンパクト表示の内容 | `CompactRow` |
+| 不透明度の選択肢 | `OPACITY_LEVELS` |
+| バージョンを上げる | `__version__` と `CHANGELOG.md`（下記「リリース手順」） |
 | 二重起動防止 | `SingleInstance` / `--new-instance` |
 | 表示項目追加 | `make_gpu()` にキー追加 → 両ソース（`NvmlSource.query()` / `query_gpus()`）で値を取得 → `GpuCard.update(g)` で描画 |
 | 消費電力の表示/閾値 | `NvmlSource.query()` の PowerUsage / PowerManagementLimit、`query_gpus()` の `power.draw/power.limit`、`GpuCard` の `pwr_bar` |
@@ -332,6 +357,8 @@ main()
   ポーリングは継続（`root.after` で再呼出）。GPU消失等に一時的に表示が空になるのは想定内。
   例外の全文（nvidia-smi の stderr 含む）は stderr に出す。毎回出すと端末が埋まるので、
   内容が前回と同じなら出さない（`_last_error`）。
+- **不透明度**：`wm_attributes("-alpha")` は X11 の `_NET_WM_WINDOW_OPACITY` を設定するだけなので、
+  コンポジタの無いウィンドウマネージャでは効かない（GNOME では効く）。
 - **シグナル**：SIGINT / SIGTERM のハンドラは `root.after(0, close)` で予約するだけ。
   Tk の操作はメインループから行う。
 - **アイコン**：原本は `icon.svg`。色はアプリと同じ（`BG` / `CARD_BG` / `BAR_BG` / `GOOD` / `WARN` / `BAD` / `DIM`）、
@@ -403,7 +430,24 @@ XDG_DATA_HOME=/tmp/xdg/data XDG_CONFIG_HOME=/tmp/xdg/config ./install.sh --unins
 
 ---
 
-## 5. 将来の拡張候補
+## 5. リリース手順
+
+1. `gpu_monitor.py` の `__version__` を上げる（例 `1.1.0`）。
+2. `CHANGELOG.md` の先頭に `## [1.1.0] - 日付` と変更点を書く（テストが `__version__` の記載を確認する）。
+3. テストを通してコミットし、タグを付けて push する。
+
+```bash
+python3 -m unittest discover -s tests
+git commit -am "Release 1.1.0"
+git tag -a v1.1.0 -m "GPU Monitor 1.1.0"
+git push && git push origin v1.1.0
+```
+
+4. GitHub の Releases でタグ `v1.1.0` からリリースを作り、本文に CHANGELOG の該当部分を貼る。
+
+---
+
+## 6. 将来の拡張候補
 
 - [x] GPU 数変動（eGPU の接続、ドライバの再読み込み等）をポーリング内で検出しカードを自動再構築
 - [ ] CPU / RAM 表示タブ（`/proc/stat` / `/proc/meminfo` 取得）

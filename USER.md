@@ -45,16 +45,19 @@ Move the mouse over a GPU card to see which processes are using it, next to the 
 - The list is largest memory first and updates while the mouse stays on the card.
 - Processes of other users or in containers may show `?` if they cannot be seen.
 
-### Right-click menu
+### Menu
 
-Right-click anywhere in the window:
+Click the **⋮** button at the top-right of the window, or right-click anywhere in the window. Settings are saved for next time.
 
 | Item | Meaning |
 |---|---|
 | Always on top | Same as the "Always on top" button |
-| Show history graph (60 s) | Show / hide the graphs (saved for next time) |
+| Compact view | Show each GPU on one line: `GPU 0  G 17%  M 9%  P 8%  48°C` (G = GPU, M = memory, P = power). The graphs and the total-memory line are hidden. Hover still shows the processes. |
+| Show history graph (60 s) | Show / hide the graphs (not available in compact view) |
+| Opacity | Make the window see-through: 100% / 90% / 80% / 70% / 60% |
 | Move to top-right | Move the window back to the top-right corner |
 | Quit | Close the app (the window position is saved) |
+| GPU Monitor 1.0.0 | Version (cannot be clicked) |
 
 ---
 
@@ -94,6 +97,7 @@ To remove it (menu entry, autostart and icon), run `./install.sh --uninstall`. I
 | `./gpu_monitor.py -R` | Start at the top-right, ignoring the saved position (if the window got lost) |
 | `./gpu_monitor.py --nvidia-smi` | Read GPU data with the `nvidia-smi` command (see FAQ) |
 | `./gpu_monitor.py --new-instance` | Open another window even if one is already running |
+| `./gpu_monitor.py --version` | Show the version |
 | `./gpu_monitor.py --help` | Show help/options |
 
 ---
@@ -156,11 +160,13 @@ A. Normally the program reads the GPU data directly from the NVIDIA driver libra
 Saved in `~/.config/gpu_monitor.json`:
 
 ```json
-{ "always_on_top": true, "show_graph": true, "x": 2932, "y": 20 }
+{ "always_on_top": true, "show_graph": true, "compact": false, "opacity": 100, "x": 2932, "y": 20 }
 ```
 
 - `always_on_top`: `true` = Always on top ON (displayed at the very front), `false` = OFF (normal window)
 - `show_graph`: `true` = show the history graphs (default), `false` = hide them
+- `compact`: `true` = compact view, `false` = cards (default)
+- `opacity`: `100`, `90`, `80`, `70` or `60` (%). Other values are treated as 100
 - `x`, `y`: Window position (pixels from the top-left of the screen), saved when the app is closed
 
 To change this manually, edit the file while the app is closed, then restart `./gpu_monitor.py`.
