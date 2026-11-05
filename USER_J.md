@@ -7,7 +7,7 @@
 
 - 場所: `~/programs/gpu_monitor/`
 - 本体: `gpu_monitor.py`
-- 必要環境: Ubuntu（デスクトップ） + NVIDIA ドライバ（`nvidia-smi` が利用できていること）
+- 必要環境: Ubuntu（デスクトップ） + NVIDIA ドライバ
 - 読みやすい画面は暗色テーマです。
 
 ---
@@ -44,16 +44,31 @@ cd ~/programs/gpu_monitor
 ./gpu_monitor.py
 ```
 
-- ウィンドウが**画面右上**に出てきます。
+- 初回はウィンドウが**画面右上**に出てきます。2 回目からは**前回閉じた位置**に開きます（好きな場所へドラッグしてください）。
 - 約 **0.5秒**ごとに表示が自動更新されます。
-- 閉じる時はウィンドウの ✕ を押すだけです。
+- 閉じる時はウィンドウの ✕ を押します（ターミナルで Ctrl+C でも可）。どちらでも位置は保存されます。
+
+### アプリメニューから起動する
+
+ターミナルで一度だけ次を実行します。
+
+```bash
+cd ~/programs/gpu_monitor
+./install.sh               # アプリメニューに「GPU Monitor」を登録
+./install.sh --autostart   # ログイン時にも自動で起動
+```
+
+削除するときは `./install.sh --uninstall` です。フォルダを移動したら `./install.sh` をもう一度実行してください。
 
 ### オプション（コマンド）
 
 | コマンド | 意味 |
 |---|---|
-| `./gpu_monitor.py` | 通常起動（前回の「常に手前」の状態をそのまま使う） |
+| `./gpu_monitor.py` | 通常起動（前回の「常に手前」の状態とウィンドウ位置をそのまま使う） |
 | `./gpu_monitor.py -A` | **起動した直後は必ず常時手前に表示**する |
+| `./gpu_monitor.py --no-always-on-top` | 常時手前**なし**で起動する |
+| `./gpu_monitor.py -R` | 保存位置を無視して右上に表示する（ウィンドウが見当たらないとき） |
+| `./gpu_monitor.py --nvidia-smi` | `nvidia-smi` コマンドで GPU 情報を取る（FAQ 参照） |
 | `./gpu_monitor.py --help` | オプション一覧を表示 |
 
 ---
@@ -76,17 +91,18 @@ cd ~/programs/gpu_monitor
 ## よくある質問（FAQ）
 
 **Q. 「Error: ...」と出ました。**
-A. `nvidia-smi` が動いていません。メッセージで原因がわかります。
+A. GPU 情報を読み取れていません。メッセージで原因がわかります。
 
 | メッセージ | 意味 |
 |---|---|
+| `NVML: ...` | NVIDIA ドライバがエラーを返した（`GPU is lost`、`Driver Not Loaded` など） |
 | `nvidia-smi not found` | NVIDIA ドライバ（`nvidia-smi` コマンド）が入っていない |
 | `nvidia-smi failed (exit N)` | `nvidia-smi` は動いたが失敗した（ドライバ未読み込み、GPU 未認識など） |
 | `nvidia-smi timed out (2s)` | `nvidia-smi` が 2 秒以内に応答しなかった |
 
 ターミナルで直接 `nvidia-smi` を実行して、GPU情報が表示されるか確認してください。
 ターミナルから起動した場合は、詳しいエラー内容がターミナルにも表示されます。
-`nvidia-smi` が直れば、表示は自動で元に戻ります。
+ドライバが直れば、表示は自動で元に戻ります。
 
 **Q. GPUが2つあるのに1つしか出ません。**
 A. `nvidia-smi --query-gpu=name --format=csv,noheader` で認識されているGPU数を確認してください。
@@ -102,22 +118,30 @@ A. 表示は参考値です。GPU種別ごとに耐熱温度が異なります�
 **Q. 起動してもウィンドウが消えません／表示されません。**
 A. ディスプレイ環境（`DISPLAY`）が設定されているか確認してください。
    通常はデスクトップからターミナルで上記コマンドを実行すると出るはずです。
+   起動はしているのに見当たらない場合（外したモニタ上で閉じた等）は、
+   `./gpu_monitor.py -R` で起動すると右上に戻ります。
+
+**Q. `--nvidia-smi` は何のためのオプションですか？**
+A. 通常は NVIDIA ドライバのライブラリ（NVML）から直接 GPU 情報を読むので軽く速いです。
+   このライブラリが読めない場合は、自動で `nvidia-smi` コマンドに切り替わります。
+   `--nvidia-smi` は後者を強制するもので、普段は不要です。
 
 ---
 
 ## 設定ファイル
 
-`~/.config/gpu_monitor.json` に保存します。現在保存される項目は1つです。
+`~/.config/gpu_monitor.json` に保存します。
 
 ```json
-{ "always_on_top": true }
+{ "always_on_top": true, "x": 2932, "y": 20 }
 ```
 
-- `true`  : 常時手前 ON（画面の一番手前に表示）
-- `false` : 常時手前 OFF（普通のウィンドウ）
+- `always_on_top`: `true` = 常時手前 ON（画面の一番手前に表示）、`false` = OFF（普通のウィンドウ）
+- `x`, `y`: ウィンドウの位置（画面左上からのピクセル数）。終了時に保存
 
-手動で変更したい場合はこのファイルを開き、`true` / `false` を入れ替えて保存、
+手動で変更したい場合は、プログラムを閉じた状態でこのファイルを編集し、
 そのあと `./gpu_monitor.py` を起動し直してください。
+保存位置が画面の外になっている場合は、右上に表示します。
 （ファイルが壊れている場合は、プログラム側は無視して既定値で起動します。）
 
 ---
@@ -127,6 +151,7 @@ A. ディスプレイ環境（`DISPLAY`）が設定されているか確認し�
 | 物 | パス |
 |---|---|
 | プログラム本体 | `~/programs/gpu_monitor/gpu_monitor.py` |
+| メニュー登録 | `~/programs/gpu_monitor/install.sh` |
 | ユーザ用説明（このファイル） | `~/programs/gpu_monitor/USER_J.md` |
 | ユーザ用説明（英語） | `~/programs/gpu_monitor/USER.md` |
 | 開発者用説明 | `~/programs/gpu_monitor/DEVELOPER.md` |

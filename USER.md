@@ -4,7 +4,7 @@ This is a tiny program that allows you to monitor the "utilization," "memory usa
 
 - Location: `~/programs/gpu_monitor/`
 - Main file: `gpu_monitor.py`
-- Requirements: Ubuntu (Desktop) + NVIDIA Drivers (`nvidia-smi` must be available)
+- Requirements: Ubuntu (Desktop) + NVIDIA Drivers
 - Theme: Dark theme for better readability.
 
 ---
@@ -41,16 +41,31 @@ cd ~/programs/gpu_monitor
 ./gpu_monitor.py
 ```
 
-- A window will appear at the **top-right** of the screen.
+- The first time, the window appears at the **top-right** of the screen. After that it opens **where you last closed it** (drag it anywhere you like).
 - The display is automatically updated approximately every **0.5 seconds**.
-- To close the app, simply click the ✕ button on the window.
+- To close the app, click the ✕ button on the window (or press Ctrl+C in the terminal). The window position is saved either way.
+
+### Start from the application menu
+
+Run this once in the terminal:
+
+```bash
+cd ~/programs/gpu_monitor
+./install.sh               # add "GPU Monitor" to the application menu
+./install.sh --autostart   # also start it automatically at login
+```
+
+To remove it, run `./install.sh --uninstall`. If you move the folder, run `./install.sh` again.
 
 ### Options (Command Line)
 
 | Command | Meaning |
 |---|---|
-| `./gpu_monitor.py` | Normal start (remembers the last "Always on top" setting) |
+| `./gpu_monitor.py` | Normal start (remembers the last "Always on top" setting and window position) |
 | `./gpu_monitor.py -A` | **Force "Always on top"** from the start |
+| `./gpu_monitor.py --no-always-on-top` | Start **without** "Always on top" |
+| `./gpu_monitor.py -R` | Start at the top-right, ignoring the saved position (if the window got lost) |
+| `./gpu_monitor.py --nvidia-smi` | Read GPU data with the `nvidia-smi` command (see FAQ) |
 | `./gpu_monitor.py --help` | Show help/options |
 
 ---
@@ -73,15 +88,16 @@ If you want the window to stay visible and not be hidden behind other windows:
 ## FAQ
 
 **Q. I see an "Error: ..." message.**
-A. `nvidia-smi` is not working. The message tells you why:
+A. The GPU information could not be read. The message tells you why:
 
 | Message | Meaning |
 |---|---|
+| `NVML: ...` | The NVIDIA driver returned an error (e.g. `GPU is lost`, `Driver Not Loaded`) |
 | `nvidia-smi not found` | The NVIDIA driver (`nvidia-smi` command) is not installed |
 | `nvidia-smi failed (exit N)` | `nvidia-smi` ran but failed (e.g. driver not loaded, GPU not recognized) |
 | `nvidia-smi timed out (2s)` | `nvidia-smi` did not answer within 2 seconds |
 
-Run `nvidia-smi` directly in the terminal to check if GPU information is displayed. When started from a terminal, the full error message is also printed there. The display recovers automatically once `nvidia-smi` works again.
+Run `nvidia-smi` directly in the terminal to check if GPU information is displayed. When started from a terminal, the full error message is also printed there. The display recovers automatically once the driver works again.
 
 **Q. I have two GPUs, but only one is shown.**
 A. Check the number of recognized GPUs by running `nvidia-smi --query-gpu=name --format=csv,noheader`. It's possible the second GPU is not enabled in the drivers/settings.
@@ -94,21 +110,26 @@ A. These values are for reference. Heat tolerance varies by GPU model. If the te
 
 **Q. The window doesn't appear after starting.**
 A. Please check if your `DISPLAY` environment is correctly set. The program should appear if run from a terminal within a desktop environment.
+If it starts but you cannot see it (e.g. it was closed on a monitor that is now disconnected), start it with `./gpu_monitor.py -R` to bring it back to the top-right.
+
+**Q. What is `--nvidia-smi` for?**
+A. Normally the program reads the GPU data directly from the NVIDIA driver library (NVML), which is light and fast. If that library cannot be loaded, it automatically uses the `nvidia-smi` command instead. `--nvidia-smi` forces the latter; you normally do not need it.
 
 ---
 
 ## Config File
 
-Saved in `~/.config/gpu_monitor.json`. Currently, only one item is stored:
+Saved in `~/.config/gpu_monitor.json`:
 
 ```json
-{ "always_on_top": true }
+{ "always_on_top": true, "x": 2932, "y": 20 }
 ```
 
-- `true`: Always on top ON (displayed at the very front)
-- `false`: Always on top OFF (normal window)
+- `always_on_top`: `true` = Always on top ON (displayed at the very front), `false` = OFF (normal window)
+- `x`, `y`: Window position (pixels from the top-left of the screen), saved when the app is closed
 
-To change this manually, open the file, switch `true`/`false`, save it, and restart `./gpu_monitor.py`.
+To change this manually, edit the file while the app is closed, then restart `./gpu_monitor.py`.
+If the saved position is off-screen, the window is placed at the top-right instead.
 (If the file is corrupted, the program will ignore it and boot with default settings.)
 
 ---
@@ -118,6 +139,7 @@ To change this manually, open the file, switch `true`/`false`, save it, and rest
 | Item | Path |
 |---|---|
 | Program | `~/programs/gpu_monitor/gpu_monitor.py` |
+| Menu registration | `~/programs/gpu_monitor/install.sh` |
 | User Guide (this file) | `~/programs/gpu_monitor/USER.md` |
 | User Guide (Japanese) | `~/programs/gpu_monitor/USER_J.md` |
 | Developer Guide | `~/programs/gpu_monitor/DEVELOPER.md` |

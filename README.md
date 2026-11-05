@@ -12,7 +12,7 @@ NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモ
 
 ### What it does
 
-* Monitors all NVIDIA GPUs detected by `nvidia-smi`
+* Monitors all NVIDIA GPUs, reading NVML (`libnvidia-ml.so.1`) directly; falls back to `nvidia-smi`
 * Refreshes every 0.5 s
 * Per GPU card shows:
   * **GPU** bar – GPU utilization %
@@ -20,27 +20,42 @@ NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモ
   * **PWR** bar – power draw / limit %
   * Detail line: `used/total MiB  temp°C  power/limit W`
 * Color coding: <70% green, 70-89% yellow, ≥90% red
-* "Always on top" toggle button. State is persisted to `~/.config/gpu_monitor.json`
-* Window fits content exactly with +0px margin, right-top placement, width stabilized
+* "Always on top" toggle button
+* Remembers the window position; the first launch places it at the top-right
+* Settings are persisted to `~/.config/gpu_monitor.json`
+* Window fits content exactly with +0px margin, width stabilized
 
 ### Requirements
 
 * Python 3 with Tkinter
-* NVIDIA driver with `nvidia-smi` available
+* NVIDIA driver (`libnvidia-ml.so.1` or the `nvidia-smi` command)
 * Linux desktop with DISPLAY
 
-No pip packages needed. Uses only stdlib: `tkinter`, `subprocess`, `argparse`, `json`, `pathlib`.
+No pip packages needed. Uses only the standard library (`tkinter`, `ctypes`, `subprocess`, ...).
 
 ### Quick start
 
 ```bash
 cd ~/programs/gpu_monitor
-./gpu_monitor.py          # normal start, restores last always-on-top setting
-./gpu_monitor.py -A       # start with always-on-top forced
+./gpu_monitor.py                     # normal start, restores last settings and position
+./gpu_monitor.py -A                  # start with always-on-top forced
+./gpu_monitor.py --no-always-on-top  # start without always-on-top
+./gpu_monitor.py -R                  # start at the top-right, ignoring the saved position
+./gpu_monitor.py --nvidia-smi        # use nvidia-smi instead of NVML
 ./gpu_monitor.py --help
 ```
 
-Window appears on the top-right of the screen.
+The first launch places the window at the top-right of the screen. After that it opens where you last closed it.
+
+### Application menu / autostart
+
+```bash
+./install.sh               # add "GPU Monitor" to the application menu
+./install.sh --autostart   # also start it at login
+./install.sh --uninstall   # remove both
+```
+
+Run it from a terminal where `python3` has Tkinter; the absolute path of that Python is written into the menu entry. Run it again if you move the folder or change Python.
 
 ### Always on top
 
@@ -53,6 +68,7 @@ The state is automatically saved to `~/.config/gpu_monitor.json` and restored on
 ### Files
 
 * `gpu_monitor.py` – main program
+* `install.sh` – adds the program to the application menu / autostart
 * `README.md` – this file
 * `USER.md` – user guide (English)
 * `USER_J.md` – user guide (Japanese)
@@ -72,7 +88,7 @@ MIT. See [LICENSE](LICENSE).
 
 ### できること
 
-* `nvidia-smi` で検出された全 NVIDIA GPU を監視
+* 全 NVIDIA GPU を監視。NVML（`libnvidia-ml.so.1`）を直接読み、使えなければ `nvidia-smi` を使う
 * 0.5 秒間隔で更新
 * GPU ごとにカード表示：
   * **GPU** バー – GPU 使用率 %
@@ -80,13 +96,15 @@ MIT. See [LICENSE](LICENSE).
   * **PWR** バー – 消費電力 / 上限 %
   * 詳細行：`使用/総量 MiB  温度°C  消費電力/上限 W`
 * 色分け：70% 未満 緑、70〜89% 黄、90% 以上 赤
-* 「Always on top」トグルボタン。状態は `~/.config/gpu_monitor.json` に永続保存
-* ウィンドウは内容にピッタリフィット（余白 0px）、右上に配置、幅は安定化
+* 「Always on top」トグルボタン
+* ウィンドウ位置を記憶（初回は画面右上に配置）
+* 設定は `~/.config/gpu_monitor.json` に永続保存
+* ウィンドウは内容にピッタリフィット（余白 0px）、幅は安定化
 
 ### 要件
 
 * Python 3 + Tkinter
-* NVIDIA ドライバ、`nvidia-smi` が使える環境
+* NVIDIA ドライバ（`libnvidia-ml.so.1` か `nvidia-smi` コマンド）
 * DISPLAY 付き Linux デスクトップ
 
 外部パッケージ不要。標準ライブラリのみ使用。
@@ -95,12 +113,25 @@ MIT. See [LICENSE](LICENSE).
 
 ```bash
 cd ~/programs/gpu_monitor
-./gpu_monitor.py          # 通常起動。前回の Always on top 状態を引き継ぐ
-./gpu_monitor.py -A       # 常時手前で起動
-./gpu_monitor.py --help   # ヘルプ
+./gpu_monitor.py                     # 通常起動。前回の設定と位置を引き継ぐ
+./gpu_monitor.py -A                  # 常時手前で起動
+./gpu_monitor.py --no-always-on-top  # 常時手前なしで起動
+./gpu_monitor.py -R                  # 保存位置を無視して右上に表示
+./gpu_monitor.py --nvidia-smi        # NVML の代わりに nvidia-smi を使う
+./gpu_monitor.py --help              # ヘルプ
 ```
 
-ウィンドウが画面右上に表示されます。
+初回はウィンドウが画面右上に表示されます。2 回目からは前回閉じた位置に開きます。
+
+### アプリメニュー・自動起動
+
+```bash
+./install.sh               # アプリメニューに「GPU Monitor」を登録
+./install.sh --autostart   # ログイン時にも自動起動
+./install.sh --uninstall   # 両方を削除
+```
+
+`python3` で Tkinter が使えるターミナルから実行してください。その Python の絶対パスがメニュー項目に書き込まれます。フォルダを移動したり Python を変えたりしたら、もう一度実行してください。
 
 ### Always on top
 
@@ -113,6 +144,7 @@ cd ~/programs/gpu_monitor
 ### ファイル構成
 
 * `gpu_monitor.py` – 本体
+* `install.sh` – アプリメニュー・自動起動への登録
 * `README.md` – このファイル
 * `USER.md` – ユーザ向けガイド（英語）
 * `USER_J.md` – ユーザ向けガイド（日本語）
