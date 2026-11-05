@@ -4,6 +4,8 @@ A tiny Tkinter GUI that shows NVIDIA GPU usage, memory usage, power usage, tempe
 
 NVIDIA GPU の使用率・メモリ使用率・消費電力率・温度・メモリ絶対値をリアルタイムで小さく表示する Tkinter GUI です。外部 Python パッケージは不要です。
 
+![GPU Monitor Screenshot](gpu_monitor.png)
+
 ---
 
 ## English
