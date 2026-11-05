@@ -46,7 +46,7 @@ Dependencies (依存関係):
 
 Usage (使い方):
   ./gpu_monitor.py                Normal start (restores last always-on-top)
-  ./gpu_monitor.py                通常起動（前回の always-on-top を引き継ぐ）
+                                  / 通常起動（前回の always-on-top を引き継ぐ）
   ./gpu_monitor.py -A             Start with always-on-top / 常時手前で起動
   ./gpu_monitor.py --help         Show help / ヘルプ表示
 
@@ -54,10 +54,11 @@ Design notes (設計上のポイント):
   - All logic in one file; no external packages.
     / 全ロジックを1ファイルに集約し、外部パッケージ不要。
   - UI runs on tkinter's main loop. nvidia-smi is called synchronously
-    via subprocess (light enough for a 0.5s cadence). Can be moved to
-    a thread later if needed.
+    via subprocess (light enough for a 0.5s cadence), with a timeout
+    so a hung nvidia-smi cannot freeze the GUI indefinitely.
     / UI スレッドは tkinter のメインループのみ。nvidia-smi は同期
-      subprocess で起動（0.5s 間隔なら軽量）。必要ならスレッド化可。
+      subprocess で起動（0.5s 間隔なら軽量）。nvidia-smi が固まっても
+      GUI が止まり続けないよう timeout を付けている。
   - Window width is stabilized by caching the max requested width in
     self._max_req so it never shrinks back. Initial placement is done
     by _initial_place; subsequent updates are done by _fit.
@@ -65,28 +66,22 @@ Design notes (設計上のポイント):
       初期配置は _initial_place、更新毎に _fit で内容に追随。
   - Persistence is just two small helpers: load_config / save_config.
     / 設定は load_config / save_config の 2 関数で JSON 永続化。
-
-Change log (変更履歴):
-  - 2026-11-04: Added PWR bar, compressed detail line to 1 line,
-                fixed Always-on-top color inversion.
-                / PWR バー追加、詳細行を 1 行に圧縮、
-                  Always on top の色反転修正
-  - 2026-11-04: Window width from 8px margin to 0px (content width);
-                introduced width-stabilization logic.
-                / ウィンドウ幅 8px 余白 → 0px（内容幅）に調整、
-                  幅安定化ロジック導入
 """
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import tkinter as tk
 
 REFRESH_MS = 500   # Refresh interval in milliseconds / 更新間隔 (ms)
+QUERY_TIMEOUT_S = 2  # nvidia-smi timeout in seconds / nvidia-smi のタイムアウト (s)
 CONFIG_FILE = Path.home() / ".config" / "gpu_monitor.json"
-BAR_W = 190        # Bar width in pixels / バー幅 (px)
+BAR_W = 160        # Bar width in pixels / バー幅 (px)
 BAR_H = 12         # Bar height in pixels / バー高さ (px)
+PCT_W = 34         # Width of the "100%" text area right of the bar (px)
+                   # / バー右側の % 表示領域の幅 (px)
 
 # --- Colors (色) -------------------------------------------
 BG = "#1e1e2e"       # Window background / ウィンドウ背景
@@ -159,8 +154,10 @@ def query_gpus():
       power_pct              消費電力率(%) / Power draw ratio (%)
 
     Exceptions are intentionally let propagate; the caller will catch
-    them and show the error in the status line.
-    / 例外は呼び出し元で捕捉し、状態行に表示する。
+    them and show the error in the status line. If nvidia-smi does not
+    answer within QUERY_TIMEOUT_S, subprocess.TimeoutExpired is raised.
+    / 例外は呼び出し元で捕捉し、状態行に表示する。nvidia-smi が
+      QUERY_TIMEOUT_S 秒以内に応答しなければ TimeoutExpired を送出する。
     """
     out = subprocess.run(
         [
@@ -170,6 +167,7 @@ def query_gpus():
             "--format=csv,noheader,nounits",
         ],
         capture_output=True, text=True, check=True,
+        timeout=QUERY_TIMEOUT_S,
     ).stdout.strip()
 
     def num(s, default=0.0):
@@ -204,6 +202,24 @@ def query_gpus():
     return gpus
 
 
+def short_error(e):
+    """Return a short one-line message for a query_gpus() exception.
+    / query_gpus() の例外を、状態行用の短い 1 行メッセージにする。
+
+    str(CalledProcessError) contains the whole argument list (~200
+    chars) and would stretch the window, so it is never shown as is.
+    / CalledProcessError の文字列は引数一覧を含み約 200 文字になり
+      ウィンドウを横に引き伸ばすため、そのままは表示しない。
+    """
+    if isinstance(e, FileNotFoundError):
+        return "nvidia-smi not found"
+    if isinstance(e, subprocess.TimeoutExpired):
+        return f"nvidia-smi timed out ({QUERY_TIMEOUT_S}s)"
+    if isinstance(e, subprocess.CalledProcessError):
+        return f"nvidia-smi failed (exit {e.returncode})"
+    return type(e).__name__
+
+
 class BarWidget:
     """A single horizontal usage bar with a percentage label.
     / パーセンテージラベル付きの水平バー1本。"""
@@ -214,17 +230,20 @@ class BarWidget:
                               bg=CARD_BG, fg=DIM, font=("Helvetica", 10))
         self.label.grid(row=row, column=0, sticky="e", padx=(6, 4))
 
-        # Canvas hosts the background + fill rectangle + percent text
-        # Canvas に背景・塗りつぶし・%テキストを描画
-        self.canvas = tk.Canvas(parent, width=BAR_W, height=BAR_H,
+        # Canvas hosts the background + fill rectangle + percent text.
+        # The text sits right of the bar (x >= BAR_W) so it never
+        # overlaps the fill, even at 100%.
+        # Canvas に背景・塗りつぶし・%テキストを描画。テキストはバーの
+        # 右側 (x >= BAR_W) に置き、100% でも塗りと重ならないようにする。
+        self.canvas = tk.Canvas(parent, width=BAR_W + PCT_W, height=BAR_H,
                                 bg=CARD_BG, highlightthickness=0)
         self.canvas.grid(row=row, column=1, sticky="w")
         self.canvas.create_rectangle(0, 0, BAR_W, BAR_H,
                                      fill=BAR_BG, width=0)
         self.rect = self.canvas.create_rectangle(0, 0, 0, BAR_H,
                                                  fill=GOOD, width=0)
-        self.txt = self.canvas.create_text(BAR_W - 20, BAR_H // 2,
-                                           text="--%", anchor="w",
+        self.txt = self.canvas.create_text(BAR_W + PCT_W, BAR_H // 2,
+                                           text="--%", anchor="e",
                                            fill=FG, font=("Helvetica", 10,
                                                            "bold"))
 
@@ -349,6 +368,8 @@ class App:
 
         self.cards = []
         self._max_req = 0   # Width stabilizer (see _fit) / 幅安定化用
+        self._placed = False   # _initial_place done? / 初期配置済みか
+        self._last_error = None   # Last error printed to stderr / 直近のエラー
         self.refresh()
 
     def _toggle_topmost(self):
@@ -426,25 +447,37 @@ class App:
         top-right; subsequent calls just update in place.
         / 初回はカード生成とウィンドウ配置、2回目以降は更新のみ。
 
-        On error the exception is shown in the status line and the loop
-        reschedules itself so the app keeps trying to recover.
-        / エラー時は状態行に表示し、ループを継続して復帰を試みる。
+        On error a short message is shown in the status line (details go
+        to stderr once per distinct error) and the loop reschedules
+        itself so the app keeps trying to recover.
+        / エラー時は短いメッセージを状態行に表示し（詳細は同じエラーに
+          つき 1 回だけ stderr へ）、ループを継続して復帰を試みる。
         """
         try:
             gpus = query_gpus()
         except Exception as e:
-            self.status.config(text=f"Error: {e}", fg=BAD)
+            detail = f"{e}\n{getattr(e, 'stderr', None) or ''}".strip()
+            if detail != self._last_error:
+                print(f"gpu_monitor: {detail}", file=sys.stderr)
+                self._last_error = detail
+            self.status.config(text=f"Error: {short_error(e)}", fg=BAD)
             self.mem_status.config(text="")
             self.root.after(REFRESH_MS, self.refresh)
             return
+        self._last_error = None
 
         if not self.cards:
-            # First pass: build one card per detected GPU.
-            # 初回：検出された GPU ごとに 1 枚のカード生成。
+            # Build one card per detected GPU (retried while none found).
+            # 検出された GPU ごとに 1 枚のカード生成（0 枚の間は毎回再試行）。
             for i, g in enumerate(gpus):
                 self.cards.append(GpuCard(self.cards_frame, i, g["name"]))
+        if not self._placed:
+            # Place at the top-right only once, so the user can move the
+            # window afterwards even when no GPU is found.
+            # 右上への配置は 1 回だけ。GPU が 0 枚でも以後は移動できる。
             self.root.update_idletasks()
             self._initial_place()
+            self._placed = True
 
         # Update each card with fresh numbers / 各カードを最新値で更新
         for card, g in zip(self.cards, gpus):

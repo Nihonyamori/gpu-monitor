@@ -53,15 +53,18 @@ The state is automatically saved to `~/.config/gpu_monitor.json` and restored on
 ### Files
 
 * `gpu_monitor.py` – main program
-* `DEVELOPER.md` – developer documentation
-* `USER.md` – Japanese user guide
 * `README.md` – this file
+* `USER.md` – user guide (English)
+* `USER_J.md` – user guide (Japanese)
+* `DEVELOPER.md` – developer documentation (Japanese)
+* `gpu_monitor.png` – screenshot
+* `LICENSE` – MIT License
 
 Config file: `~/.config/gpu_monitor.json`
 
 ### License
 
-MIT. See LICENSE if added.
+MIT. See [LICENSE](LICENSE).
 
 ---
 
@@ -110,12 +113,15 @@ cd ~/programs/gpu_monitor
 ### ファイル構成
 
 * `gpu_monitor.py` – 本体
-* `DEVELOPER.md` – 開発者向けドキュメント
-* `USER.md` – ユーザ向けガイド
 * `README.md` – このファイル
+* `USER.md` – ユーザ向けガイド（英語）
+* `USER_J.md` – ユーザ向けガイド（日本語）
+* `DEVELOPER.md` – 開発者向けドキュメント（日本語）
+* `gpu_monitor.png` – スクリーンショット
+* `LICENSE` – MIT ライセンス
 
 設定ファイル：`~/.config/gpu_monitor.json`
 
 ### ライセンス
 
-MIT。LICENSE を追記予定。
+MIT。[LICENSE](LICENSE) を参照。

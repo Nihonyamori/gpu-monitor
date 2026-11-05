@@ -16,11 +16,11 @@ For each GPU, the following items are displayed:
 | Item | Example | Description |
 |---|---|---|
 | GPU Name | `GPU 0  NVIDIA GeForce GTX 1070` | Which GPU is being monitored |
-| **GPU** (bar) | Green $\rightarrow$ Yellow $\rightarrow$ Red bar + % | GPU compute load (%) |
-| **MEM** (bar) | Green $\rightarrow$ Yellow $\rightarrow$ Red bar + % | Memory utilization (%) |
-| **PWR** (bar) | Green $\rightarrow$ Yellow $\rightarrow$ Red bar + % | Power draw vs. Power limit (%) |
+| **GPU** (bar) | Green → Yellow → Red bar + % | GPU compute load (%) |
+| **MEM** (bar) | Green → Yellow → Red bar + % | Memory utilization (%) |
+| **PWR** (bar) | Green → Yellow → Red bar + % | Power draw vs. Power limit (%) |
 | Detail Line | `7007/8192 MiB  77°C  60/230 W` | Memory used/total (MiB), Temp (°C), Power draw/limit (W) |
-| Bottom Line | `2 GPUs total memory: 21863 MiB used` | Total number of GPUs and total memory used |
+| Bottom Lines | `2 GPUs` / `total memory: 21863 MiB used` | Number of GPUs (1st line) and total memory used (2nd line) |
 
 ### Color Meaning (Bar colors)
 - 🟢 **Green**: Below 70% (Plenty of headroom)
@@ -73,7 +73,15 @@ If you want the window to stay visible and not be hidden behind other windows:
 ## FAQ
 
 **Q. I see an "Error: ..." message.**
-A. It is likely that `nvidia-smi` is not working (NVIDIA drivers are not installed or the GPU is not recognized). Please try running `nvidia-smi` directly in the terminal to check if GPU information is displayed.
+A. `nvidia-smi` is not working. The message tells you why:
+
+| Message | Meaning |
+|---|---|
+| `nvidia-smi not found` | The NVIDIA driver (`nvidia-smi` command) is not installed |
+| `nvidia-smi failed (exit N)` | `nvidia-smi` ran but failed (e.g. driver not loaded, GPU not recognized) |
+| `nvidia-smi timed out (2s)` | `nvidia-smi` did not answer within 2 seconds |
+
+Run `nvidia-smi` directly in the terminal to check if GPU information is displayed. When started from a terminal, the full error message is also printed there. The display recovers automatically once `nvidia-smi` works again.
 
 **Q. I have two GPUs, but only one is shown.**
 A. Check the number of recognized GPUs by running `nvidia-smi --query-gpu=name --format=csv,noheader`. It's possible the second GPU is not enabled in the drivers/settings.
@@ -110,6 +118,7 @@ To change this manually, open the file, switch `true`/`false`, save it, and rest
 | Item | Path |
 |---|---|
 | Program | `~/programs/gpu_monitor/gpu_monitor.py` |
+| User Guide (this file) | `~/programs/gpu_monitor/USER.md` |
 | User Guide (Japanese) | `~/programs/gpu_monitor/USER_J.md` |
 | Developer Guide | `~/programs/gpu_monitor/DEVELOPER.md` |
 | Config File | `~/.config/gpu_monitor.json` |

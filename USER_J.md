@@ -23,7 +23,7 @@ GPUごとに次の項目を見ます。
 | **MEM**（bar） | 緑 → 黄 → 赤のバー + % | メモリ使用率（%） |
 | **PWR**（bar） | 緑 → 黄 → 赤のバー + % | 消費電力の上限に対する使用率（%） |
 | 詳細行 | `7007/8192 MiB  77°C  60/230 W` | メモリ使用量/総量 (MiB) ・温度(°C) ・消費電力/上限(W) |
-| 最下行 | `2 GPUs total memory: 21863 MiB used` | GPU数とメモリ合計 |
+| 最下部 2 行 | `2 GPUs` / `total memory: 21863 MiB used` | GPU数（1 行目）とメモリ使用量の合計（2 行目） |
 
 ### 色の意味（バーがどの色か）
 - 🟢 **緑**   : 70% 未満（余裕あり）
@@ -75,9 +75,18 @@ cd ~/programs/gpu_monitor
 
 ## よくある質問（FAQ）
 
-**Q. 「エラー: ...」と出ました。**
-A. `nvidia-smi` が動いていない（NVIDIA ドライバ未導入か、GPUが認識されていない）可能性があります。
-   ターミナルで直接 `nvidia-smi` を実行して、GPU情報が表示されるか確認してください。
+**Q. 「Error: ...」と出ました。**
+A. `nvidia-smi` が動いていません。メッセージで原因がわかります。
+
+| メッセージ | 意味 |
+|---|---|
+| `nvidia-smi not found` | NVIDIA ドライバ（`nvidia-smi` コマンド）が入っていない |
+| `nvidia-smi failed (exit N)` | `nvidia-smi` は動いたが失敗した（ドライバ未読み込み、GPU 未認識など） |
+| `nvidia-smi timed out (2s)` | `nvidia-smi` が 2 秒以内に応答しなかった |
+
+ターミナルで直接 `nvidia-smi` を実行して、GPU情報が表示されるか確認してください。
+ターミナルから起動した場合は、詳しいエラー内容がターミナルにも表示されます。
+`nvidia-smi` が直れば、表示は自動で元に戻ります。
 
 **Q. GPUが2つあるのに1つしか出ません。**
 A. `nvidia-smi --query-gpu=name --format=csv,noheader` で認識されているGPU数を確認してください。
@@ -118,6 +127,7 @@ A. ディスプレイ環境（`DISPLAY`）が設定されているか確認し�
 | 物 | パス |
 |---|---|
 | プログラム本体 | `~/programs/gpu_monitor/gpu_monitor.py` |
-| ユーザ用説明（このファイル） | `~/programs/gpu_monitor/USER.md` |
+| ユーザ用説明（このファイル） | `~/programs/gpu_monitor/USER_J.md` |
+| ユーザ用説明（英語） | `~/programs/gpu_monitor/USER.md` |
 | 開発者用説明 | `~/programs/gpu_monitor/DEVELOPER.md` |
 | 設定ファイル | `~/.config/gpu_monitor.json` |

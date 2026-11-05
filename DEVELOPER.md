@@ -2,8 +2,8 @@
 
 NVIDIA GPU の負荷（GPU使用率・メモリ使用率・消費電力・温度・メモリ絶対値）をリアルタイムに表示する小型 tkinter GUI プログラムの実装説明と、今後修正するための情報。
 
-- ソース: `gpu_monitor.py`（全ロジックを1ファイルに集約 / 約 236 行）
-- 依存: Python 3 標準ライブラリ（`tkinter` / `subprocess` / `argparse` / `json`）+ `nvidia-smi`（NVIDIA ドライバ同梱）
+- ソース: `gpu_monitor.py`（全ロジックを1ファイルに集約）
+- 依存: Python 3 標準ライブラリ（`tkinter` / `subprocess` / `argparse` / `json` / `pathlib` / `sys`）+ `nvidia-smi`（NVIDIA ドライバ同梱）
 - 追加のパッケージは不要。
 
 ---
@@ -13,8 +13,12 @@ NVIDIA GPU の負荷（GPU使用率・メモリ使用率・消費電力・温度
 ```
 programs/gpu_monitor/
 ├── gpu_monitor.py     # 本体（全ロジックを1ファイルに集約）
+├── README.md          # 概要（英語・日本語）
+├── USER.md            # ユーザ向け説明（英語）
+├── USER_J.md          # ユーザ向け説明（日本語）
 ├── DEVELOPER.md       # このファイル（開発者向け）
-└── USER.md            # ユーザ向け説明
+├── gpu_monitor.png    # README 用スクリーンショット
+└── LICENSE            # MIT License
 
 実行時に自動生成:
 ~/.config/gpu_monitor.json   # 設定（現在「常に手前」の ON/OFF 状態のみ）
@@ -24,15 +28,15 @@ programs/gpu_monitor/
 
 ## 2. モジュール構造（gpu_monitor.py）
 
-### 2-1. モジュール上定数（25〜35行付近）
+### 2-1. モジュール上定数（docstring と import の直後）
 
 | 定数 | 意味 | 既定値 |
 |---|---|---|
 | `REFRESH_MS` | 更新間隔 (ms) | `500` |
+| `QUERY_TIMEOUT_S` | nvidia-smi のタイムアウト (s) | `2` |
 | `CONFIG_FILE` | 設定ファイルパス | `~/.config/gpu_monitor.json` |
-| `BAR_W` / `BAR_H` | 使用率バーの幅 / 高 (px) | `190` / `14` |
-| `WIN_W` | ウィンドウ幅 (px) | `350` |
-| `CARD_H` | GPU カード1枚の高（概算, px） | `132` |
+| `BAR_W` / `BAR_H` | 使用率バーの幅 / 高 (px) | `160` / `12` |
+| `PCT_W` | バー右側の % 表示領域の幅 (px)。「100%」が収まる幅 | `34` |
 | `BG` / `CARD_BG` | ウィンドウ背景 / カード背景 | `#1e1e2e` / `#2a2a3c` |
 | `FG` / `DIM` | 前景テキスト / 薄めテキスト | `#e6e6f0` / `#9a9ab0` |
 | `GOOD` / `WARN` / `BAD` | 低負荷 / 中負荷 / 高負荷の色 | 緑 / 黄 / 赤 |
@@ -73,11 +77,24 @@ query_gpus() -> list[dict]
       nvidia-smi --query-gpu=index,name,temperature.gpu,utilization.gpu,\
                             memory.total,memory.used,power.draw,power.limit \
                   --format=csv,noheader,nounits
+    QUERY_TIMEOUT_S 秒で応答がなければ subprocess.TimeoutExpired。
+    例外はここでは捕捉せず、refresh() 側で処理する。
+
+short_error(e) -> str
+    query_gpus() の例外を状態行用の短い 1 行にする。
+      FileNotFoundError   -> "nvidia-smi not found"
+      TimeoutExpired      -> "nvidia-smi timed out (2s)"
+      CalledProcessError  -> "nvidia-smi failed (exit N)"
+      その他              -> 例外クラス名
+    str(CalledProcessError) は引数一覧を含み約 200 文字あり、そのまま出すと
+    ウィンドウ幅が広がって戻らなくなる（_max_req）ため、必ずこれを通す。
 
 class BarWidget(parent, row, label_text)
     1本の「横バー + パーセント表示」。
-    .label   tk.Label ("GPU"/"MEM")
-    .canvas  tk.Canvas (バー本体)
+    .label   tk.Label ("GPU"/"MEM"/"PWR")
+    .canvas  tk.Canvas (幅 BAR_W + PCT_W)。0〜BAR_W にバー、その右の
+             PCT_W 部分に % を右寄せで描く。% をバーの外に置くので、
+             90% 以上（赤）でも塗りと重ならず読める
     .rect / .txt  canvas 内の図形ID
     .set(pct)  幅・色・数値を 1 度に更新 (0〜100 にクランプ)
 
@@ -96,7 +113,9 @@ class App(always_on_top=None)
     .top_btn      「常に手前」トグルボタン
     .cards        GpuCard のリスト
     ._toggle_topmost()  トグル押下 → 状態反転 + save_config() で永続化
-    ._initial_place()   GPU数に応じた高でウィンドウを(初期)右上に配置
+    ._initial_place()   内容に合わせたサイズでウィンドウを右上に配置。
+                        最初の取得成功時に 1 回だけ（_placed フラグ）
+    ._fit()             更新毎にウィンドウサイズを内容に追随（位置は保持）
     .refresh()          500ms ごとに nvidia-smi 取得 → 全カード更新 →
                         self.root.after(REFRESH_MS, ...) で再帰スケジュール
 
@@ -110,7 +129,9 @@ main()
 main()
   └─> App(always_on_top).root.mainloop()
          ├─> refresh()            (nvidia-smi コール #1)
-         │      ├─ 初回なら GpuCard 生成 x N + _initial_place()
+         │      ├─ エラーなら状態行に short_error() を出して次回へ
+         │      ├─ カード未生成なら GpuCard 生成 x N
+         │      ├─ 未配置なら _initial_place()（1 回だけ）
          │      ├─ card.update(g) を各GPUへ
          │      └─ root.after(REFRESH_MS, refresh)   ← 再ポーリング
          └─> mainloop             (イベントループ)
@@ -132,6 +153,9 @@ main()
 | 目的 | 見る箇所 |
 |---|---|
 | 更新間隔変更 | `REFRESH_MS` |
+| nvidia-smi のタイムアウト | `QUERY_TIMEOUT_S` |
+| バー・% 表示の幅 | `BAR_W` / `PCT_W` |
+| エラーメッセージ | `short_error(e)` |
 | 色テーマ変更 | `BG` / `CARD_BG` / `GOOD` / `WARN` / `BAD` 等のHEX |
 | 黄/赤の閾値変更 | `color_for_pct(pct)`（`>=90` / `>=70` の数字） |
 | 表示項目追加 | `query_gpus()` の dict にキー追加 → `GpuCard.update(g)` で描画 |
@@ -144,15 +168,20 @@ main()
 
 ### 設計上の注意
 
-- **tkinter のシングルスレッド前提**：GPU 取得は一発の `subprocess` 呼出なのでそのまま同期呼び出し。
+- **tkinter のシングルスレッド前提**：GPU 取得は一発の `subprocess` 呼出なのでそのまま同期呼び出し
+  （GTX 1070 + RTX 3090 の環境で 1 回 30〜40ms）。`nvidia-smi` が固まった場合に備えて
+  `QUERY_TIMEOUT_S` で打ち切る（その間は GUI が止まる）。
   長い処理（外部API等）を入れる場合は `threading` で取り、結果は `root.after` でUIスレッドへ戻すパターンが安全。
-- **nvidia-smi 依存**：ドライバ未構築環境では全カードが `--` のまま。
-  `shutil.which("nvidia-smi")` で存在確認し、起動時に明示メッセージを出すのも手。
-- **GPU の動的増減は未サポート**：カード生成は初回 `refresh()` で1回だけ。
+- **nvidia-smi 依存**：ドライバ未構築環境ではカードは作られず、状態行に
+  `Error: nvidia-smi not found` を表示する。
+- **GPU 0 枚**：カードは作られず「0 GPUs」と表示。カード生成は GPU が見つかるまで毎回再試行する。
+- **GPU の動的増減は未サポート**：カード生成は GPU が 1 枚以上見つかった最初の `refresh()` で1回だけ。
   実行中に GPU 数が変わっても自動再構築されない。必要ならポーリング内で
   `len(self.cards) != len(gpu_list)` を検出してカードを再構築するロジックを追加。
-- **エラー表示**：`query_gpus()` が例外を出すと状態行に「エラー: ...」を表示しつつ
+- **エラー表示**：`query_gpus()` が例外を出すと状態行に `Error: <short_error()>` を表示しつつ
   ポーリングは継続（`root.after` で再呼出）。GPU消失等に一時的に表示が空になるのは想定内。
+  例外の全文（nvidia-smi の stderr 含む）は stderr に出す。毎回出すと端末が埋まるので、
+  内容が前回と同じなら出さない（`_last_error`）。
 
 ---
 
@@ -175,13 +204,22 @@ nvidia-smi --query-gpu=index,name,temperature.gpu,utilization.gpu,memory.total,m
 # 4) 「常に手前」の永続確認
 #    - GUI上で ON にして終了 → ~/.config/gpu_monitor.json が {"always_on_top": true}
 #    - 再起動 → 自動で ON のままである
+
+# 5) 高負荷・エラー時の表示（偽の nvidia-smi を PATH の先頭に置く）
+mkdir -p /tmp/fake_smi && cd /tmp/fake_smi
+printf '#!/bin/sh\necho "0, Fake GPU, 80, 95, 8192, 8192, 230, 230"\n' > nvidia-smi  # 95%/100% の % が読めるか
+# printf '#!/bin/sh\nexit 9\n' > nvidia-smi     # → Error: nvidia-smi failed (exit 9)
+# printf '#!/bin/sh\nsleep 30\n' > nvidia-smi   # → Error: nvidia-smi timed out (2s)
+# printf '#!/bin/sh\nexit 0\n' > nvidia-smi     # → 0 GPUs（ウィンドウを動かせること）
+chmod +x nvidia-smi
+PATH=/tmp/fake_smi:$PATH ~/programs/gpu_monitor/gpu_monitor.py
 ```
 
 ---
 
 ## 5. 将来の拡張候補
 
-- [ ] GPU 数変動（HDMIホットプラグ等）をポーリング内で検出しカードを自動再構築
+- [ ] GPU 数変動（eGPU の接続、ドライバの再読み込み等）をポーリング内で検出しカードを自動再構築
 - [ ] CPU / RAM 表示タブ（`/proc/stat` / `/proc/meminfo` 取得）
 - [ ] 温度・使用率の時間変化ヒストグラム（canvas 描画）
 - [ ] 色テーマ（dark/light）切替 + 設定ファイルに保存
