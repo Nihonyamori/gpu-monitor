@@ -4,7 +4,7 @@ The version number is `__version__` in `gpu_monitor.py` (also shown by `--versio
 
 バージョン番号は `gpu_monitor.py` の `__version__`（`--version` とメニューの最下段にも表示）。このファイルと揃えること（テストで確認している）。
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-11-05
 
 ### Added / 追加
 - Text size (Small / Medium / Large) in the menu; fonts, bars and graphs scale together. / メニューで文字サイズ（小・中・大）。文字・バー・グラフが一緒に変わる
